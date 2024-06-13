@@ -4,7 +4,7 @@ type JSONModel struct {
 	data string
 }
 
-func (m JSONModel) toJSON() ([]byte, error) {
+func (m JSONModel) ToJSON() ([]byte, error) {
 	return []byte(m.data), nil
 }
 

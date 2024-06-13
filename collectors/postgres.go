@@ -3,7 +3,6 @@ package collectors
 import (
 	"database/sql"
 	"github.com/comprehend-dev/comprehend.dev/agent/models"
-	"log"
 	_ "github.com/lib/pq"
 	"github.com/go-ini/ini"
 	"strings"
@@ -73,7 +72,7 @@ func (c PostgresCollector) Collect() (models.Model, error) {
 				left join pg_class on confrelid = pg_class.oid
 			group by conkeys.oid, conrelid, contype, relname
 		)
-		select json_agg(json_build_object('name', nspname, 'tables', tables))
+		select json_agg(json_build_object('database', nspname, 'tables', tables))
 			from pg_namespace
 				left join (
 					select relnamespace,

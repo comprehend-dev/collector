@@ -1,14 +1,17 @@
 package main
 
 import (
+	"bytes"
 	"flag"
 	"fmt"
 	"log"
+	"net/http"
 	"os"
 	"os/signal"
 	"strings"
 	"syscall"
 	"time"
+	"net/url"
 	"github.com/comprehend-dev/comprehend.dev/agent/collectors"
 	"github.com/go-ini/ini"
 )
@@ -18,7 +21,12 @@ func main() {
 	interrupt := make(chan os.Signal, 1)
 	signal.Notify(interrupt, syscall.SIGINT)
 
-	activeCollectors := []collectors.Collector{};
+	activeCollectors := []collectors.Collector{}
+
+	var apiKey string
+	var organization string
+	var document string
+	var comprehendURL string
 
 	flag.Func("config", "Path to configuration file", func(path string) error {
 		options := ini.LoadOptions{}
@@ -29,6 +37,18 @@ func main() {
 		}
 		for _, section := range file.Sections() {
 			if section.Name() == "DEFAULT" {
+				if apiKey == "" {
+					apiKey = section.Key("apikey").String();
+				}
+				if organization == "" {
+					organization = section.Key("organization").String();
+				}
+				if document == "" {
+					document = section.Key("document").String();
+				}
+				if comprehendURL == "" {
+					document = section.Key("comprehend_url").String();
+				}
 				continue
 			}
 			collector, found := collectors.Collectors[section.Name()]
@@ -44,6 +64,11 @@ func main() {
 		return nil
 	})
 
+	flag.StringVar(&apiKey, "apikey", apiKey, "The comprehend.dev API key you created (\"API Keys\" in the menu)");
+	flag.StringVar(&organization, "organization", organization, "Your comprehend.dev organization slug.");
+	flag.StringVar(&document, "document", organization, "The document to import the schema to.");
+	flag.StringVar(&comprehendURL, "comprehend-url", "https://ingest.comprehend.dev/ingestion/postgres/sync", "The document to import the schema to.");
+
 	for name, collector := range collectors.Collectors {
 		flag.Func(name, collector.Description(), func(arg string) error {
 			activeCollector, err := collector.Initialize(arg);
@@ -58,6 +83,10 @@ func main() {
 	flag.Usage = func() {
 		fmt.Fprintf(flag.CommandLine.Output(), "Usage: %s [options] [arguments]\n", os.Args[0])
 		fmt.Fprintf(flag.CommandLine.Output(), "Options:\n")
+		fmt.Fprintf(flag.CommandLine.Output(), "    --apikey <value>    The comprehend.dev API key you created (\"API Keys\" in the menu).\n")
+		fmt.Fprintf(flag.CommandLine.Output(), "    --organization <value>    Your comprehend.dev organization slug.\n")
+		fmt.Fprintf(flag.CommandLine.Output(), "    --document <value>    The document to import the schema to.\n")
+		// comprehend-url is intentionally undocumented as it's meant for development use only
 		for name, collector := range collectors.Collectors {
 			fmt.Fprintf(flag.CommandLine.Output(), "    --%s <value>    %s\n", name, collector.Description())
 		}
@@ -98,17 +127,48 @@ func main() {
 		}
 	}
 
+	client := &http.Client{}
+	comprehendURL = comprehendURL + "?organization=" + url.QueryEscape(organization) + "&document=" + url.QueryEscape(document)
+
+	collect := func () {
+		for _, collector := range activeCollectors {
+			model, err := collector.Collect()
+			if err != nil {
+				log.Fatalf("Error trying to collect: %s", err)
+			}
+
+			json, err := model.ToJSON()
+			if err != nil {
+				log.Fatalf("Error getting JSON from model: %s", err)
+			}
+
+			req, err := http.NewRequest(http.MethodPost, comprehendURL, bytes.NewBuffer(json))
+			if err != nil {
+				log.Fatalf("Could not create http request: %s\n", err)
+			}
+
+			req.Header.Add("Authorization", "Bearer " + apiKey)
+			req.Header.Add("Content-Type", "application/json")
+			res, err := client.Do(req)
+			if err != nil {
+				log.Fatalf("Error making http request: %s\n", err)
+			}
+
+			if res.StatusCode != 204 {
+				var body []byte
+				res.Body.Read(body)
+				log.Fatalf("Got unexpected response from server: %s\n\n%s\n", res.Status, body)
+			}
+			res.Body.Close()
+		}
+	}
+
 	// Run tasks until interrupted.
 	ticker := time.NewTicker(60 * time.Second)
-	fmt.Println("comprehend.dev agent started")
+	fmt.Println("comprehend.dev agent started for organization ", organization, ", importing into document ", document)
 
-	for _, collector := range activeCollectors {
-		model, err := collector.Collect()
-		if err != nil {
-			log.Fatalf("Error trying to collect: %s", err)
-		}
-		log.Println(model)
-	}
+	// Collect once immediately before we go into the waiting loop
+	collect()
 
 	for {
 		select {
@@ -116,13 +176,7 @@ func main() {
 			fmt.Println("comprehend.dev agent exiting")
 			return
 		case <-ticker.C:
-			for _, collector := range activeCollectors {
-				model, err := collector.Collect()
-				if err != nil {
-					log.Fatalf("Error trying to collect: %s", err)
-				}
-				log.Println(model)
-			}
+			collect()
 		}
 	}
 }
