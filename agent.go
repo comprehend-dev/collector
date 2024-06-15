@@ -67,7 +67,7 @@ func main() {
 	flag.StringVar(&apiKey, "apikey", apiKey, "The comprehend.dev API key you created (\"API Keys\" in the menu)");
 	flag.StringVar(&organization, "organization", organization, "Your comprehend.dev organization slug.");
 	flag.StringVar(&document, "document", organization, "The document to import the schema to.");
-	flag.StringVar(&comprehendURL, "comprehend-url", "https://ingest.comprehend.dev/ingestion/postgres/sync", "The document to import the schema to.");
+	flag.StringVar(&comprehendURL, "comprehend-url", "https://ingest.comprehend.dev/", "The document to import the schema to.");
 
 	for name, collector := range collectors.Collectors {
 		flag.Func(name, collector.Description(), func(arg string) error {
@@ -128,10 +128,12 @@ func main() {
 	}
 
 	client := &http.Client{}
-	comprehendURL = comprehendURL + "?organization=" + url.QueryEscape(organization) + "&document=" + url.QueryEscape(document)
+	comprehendURL = comprehendURL + url.PathEscape(organization) + "/sync/"
 
 	collect := func () {
 		for _, collector := range activeCollectors {
+			url := comprehendURL + collector.URISchema() + "?document=" + url.QueryEscape(document)
+
 			model, err := collector.Collect()
 			if err != nil {
 				log.Fatalf("Error trying to collect: %s", err)
@@ -142,7 +144,7 @@ func main() {
 				log.Fatalf("Error getting JSON from model: %s", err)
 			}
 
-			req, err := http.NewRequest(http.MethodPost, comprehendURL, bytes.NewBuffer(json))
+			req, err := http.NewRequest(http.MethodPost, url, bytes.NewBuffer(json))
 			if err != nil {
 				log.Fatalf("Could not create http request: %s\n", err)
 			}
