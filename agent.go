@@ -103,7 +103,11 @@ func main() {
 		if found == false {
 			log.Fatalf("Argument \"%s\" does not look like a URI", arg)
 		}
-		activeCollector, err := collectors.Collectors[schema].Initialize(arg)
+		collector, found := collectors.Collectors[schema]
+		if !found {
+			log.Fatalf("Error in argument %d (\"%s\"): unknown collector %s", idx + 1, arg, schema)
+		}
+		activeCollector, err := collector.Initialize(arg)
 		if err != nil {
 			log.Fatalf("Error in positional argument %d (\"%s\"): %s", idx + 1, arg, err)
 		}
