@@ -1,5 +1,5 @@
 agent: agent.go
-	go build
+	CGO_ENABLED=0 go build
 
 test:
 	../tools/with-api-service-and-std.raku run go test
