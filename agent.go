@@ -83,6 +83,7 @@ func main() {
 	flag.Usage = func() {
 		fmt.Fprintf(flag.CommandLine.Output(), "Usage: %s [options] [arguments]\n", os.Args[0])
 		fmt.Fprintf(flag.CommandLine.Output(), "Options:\n")
+		fmt.Fprintf(flag.CommandLine.Output(), "    --config <path>     A configuration file containing additional options.\n")
 		fmt.Fprintf(flag.CommandLine.Output(), "    --apikey <value>    The comprehend.dev API key you created (\"API Keys\" in the menu).\n")
 		fmt.Fprintf(flag.CommandLine.Output(), "    --organization <value>    Your comprehend.dev organization slug.\n")
 		fmt.Fprintf(flag.CommandLine.Output(), "    --document <value>    The document to import the schema to.\n")
