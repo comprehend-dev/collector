@@ -67,7 +67,7 @@ func main() {
 	flag.StringVar(&apiKey, "apikey", apiKey, "The comprehend.dev API key you created (\"API Keys\" in the menu)");
 	flag.StringVar(&organization, "organization", organization, "Your comprehend.dev organization slug.");
 	flag.StringVar(&document, "document", organization, "The document to import the schema to.");
-	flag.StringVar(&comprehendURL, "comprehend-url", "https://ingest.comprehend.dev/", "The document to import the schema to.");
+	flag.StringVar(&comprehendURL, "comprehend-url", "https://ingestion.comprehend.dev/", "The document to import the schema to.");
 
 	for name, collector := range collectors.Collectors {
 		flag.Func(name, collector.Description(), func(arg string) error {
