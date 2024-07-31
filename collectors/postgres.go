@@ -72,7 +72,7 @@ func (c PostgresCollector) Collect() (models.Model, error) {
 				left join pg_class on confrelid = pg_class.oid
 			group by conkeys.oid, conrelid, contype, relname
 		)
-		select json_agg(json_build_object('database', nspname, 'tables', tables))
+		select json_agg(json_build_object('database', nspname, 'tables', coalesce(tables, '[]'::json)))
 			from pg_namespace
 				left join (
 					select relnamespace,
