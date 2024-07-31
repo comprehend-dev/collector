@@ -1,4 +1,4 @@
-agent: agent.go
+agent: agent.go */*.go
 	CGO_ENABLED=0 go build
 
 test:

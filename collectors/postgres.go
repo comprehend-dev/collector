@@ -76,7 +76,15 @@ func (c PostgresCollector) Collect() (models.Model, error) {
 			from pg_namespace
 				left join (
 					select relnamespace,
-					json_agg(json_build_object('name', relname, 'columns', cols, 'rows', reltuples, 'primary_key', primary_key.idx, 'unique_keys', uniqs, 'foreign_keys', cons, 'indexes', indxs)) as tables
+					json_agg(json_build_object(
+                                            'name', relname,
+                                            'columns', cols,
+                                            'rows', reltuples,
+                                            'primary_key', coalesce(primary_key.idx, '[]'::json),
+                                            'unique_keys', coalesce(uniqs, '[]'::json),
+                                            'foreign_keys', coalesce(cons, '[]'::json),
+                                            'indexes', coalesce(indxs, '[]'::json)
+                                        )) as tables
 					from pg_class
 						left join (
 							select attrelid, json_agg(json_build_object('name', attname, 'type', typname, 'nullable', not attnotnull) order by attnum) as cols
