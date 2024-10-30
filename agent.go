@@ -16,6 +16,8 @@ import (
 	"github.com/go-ini/ini"
 )
 
+const defaultComprehendURL = "https://ingestion.comprehend.dev/"
+
 func main() {
 	// Set up a channel to catch SIGINT (Ctrl+C)
 	interrupt := make(chan os.Signal, 1)
@@ -46,8 +48,8 @@ func main() {
 				if document == "" {
 					document = section.Key("document").String();
 				}
-				if comprehendURL == "" {
-					document = section.Key("comprehend_url").String();
+				if comprehendURL == "" || comprehendURL == defaultComprehendURL {
+					comprehendURL = section.Key("comprehend-url").String();
 				}
 				continue
 			}
@@ -66,8 +68,8 @@ func main() {
 
 	flag.StringVar(&apiKey, "apikey", apiKey, "The comprehend.dev API key you created (\"API Keys\" in the menu)");
 	flag.StringVar(&organization, "organization", organization, "Your comprehend.dev organization slug.");
-	flag.StringVar(&document, "document", organization, "The document to import the schema to.");
-	flag.StringVar(&comprehendURL, "comprehend-url", "https://ingestion.comprehend.dev/", "The document to import the schema to.");
+	flag.StringVar(&document, "document", document, "The document to import the schema to.");
+	flag.StringVar(&comprehendURL, "comprehend-url", defaultComprehendURL, "The URL of the ingestion service - for development use only.");
 
 	for name, collector := range collectors.Collectors {
 		flag.Func(name, collector.Description(), func(arg string) error {
