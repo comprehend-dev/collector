@@ -80,7 +80,7 @@ func (c PostgresCollector) Collect() (models.Model, error) {
                                             'name', relname,
                                             'columns', cols,
                                             'rows', reltuples,
-                                            'primary_key', coalesce(primary_key.idx, '[]'::json),
+                                            'primary_key', primary_key.idx,
                                             'unique_keys', coalesce(uniqs, '[]'::json),
                                             'foreign_keys', coalesce(cons, '[]'::json),
                                             'indexes', coalesce(indxs, '[]'::json)
