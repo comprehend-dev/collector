@@ -9,6 +9,7 @@ import (
 	"os/exec"
 	"os/signal"
 	"slices"
+	"strings"
 	"sync"
 	"syscall"
 	"testing"
@@ -32,11 +33,13 @@ func TestAgent(t *testing.T) {
 		dec := json.NewDecoder(r.Body)
 		var dbs []struct{
 			Database string `json:"database"`
+			Schema string `json:"schema"`
 			Tables []Table
 		}
 		err := dec.Decode(&dbs)
 		assert.Equal(t, nil, err, "Could decode JSON")
-		assert.Equal(t, "public", dbs[0].Database, "Found public schema")
+		assert.Equal(t, strings.Split(os.Getenv("COMPREHEND_DB_CONN_INFO"), "/")[3], dbs[0].Database, "Found test database")
+		assert.Equal(t, "public", dbs[0].Schema, "Found public schema")
 		idx := slices.IndexFunc(dbs[0].Tables, func(t Table) bool { return t.Name == "organizations" })
 		assert.GreaterOrEqual(t, idx, 0, "Table organizations found")
 		w.WriteHeader(204)
