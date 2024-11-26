@@ -79,13 +79,18 @@ func (c PostgresCollector) Collect() (models.Model, error) {
 					json_agg(json_build_object(
                                             'name', relname,
                                             'columns', cols,
-                                            'rows', reltuples,
+					    'rows', case
+						    when reltuples < 100000000 then (
+							    xpath('/row/cnt/text()', query_to_xml(format('select count(*) as cnt from %I.%I', nspname, relname), false, true, ''))
+						    )[1]::text::int
+						    else reltuples end,
                                             'primary_key', primary_key.idx,
                                             'unique_keys', coalesce(uniqs, '[]'::json),
                                             'foreign_keys', coalesce(cons, '[]'::json),
                                             'indexes', coalesce(indxs, '[]'::json)
                                         )) as tables
 					from pg_class
+						join pg_namespace on pg_namespace.oid = pg_class.relnamespace
 						left join (
 							select attrelid, json_agg(json_build_object('name', attname, 'type', typname, 'nullable', not attnotnull) order by attnum) as cols
 							from pg_attribute
@@ -117,6 +122,7 @@ func (c PostgresCollector) Collect() (models.Model, error) {
 						) as fkconstraints
 						on fkconstraints.conrelid = pg_class.oid
 					where relkind in ('r', 'v', 'm', 'f', 'p')
+						and nspname not like 'pg_%' and nspname != 'information_schema'
 					group by relnamespace
 				) as nsptables on nsptables.relnamespace = pg_namespace.oid
 			where nspname not like 'pg_%' and nspname != 'information_schema'
