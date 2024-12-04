@@ -141,4 +141,4 @@ func (c PostgresCollector) Collect() (models.Model, error) {
 	return *models.NewJSONModel(databases), nil
 }
 
-var registered = RegisterCollector(PostgresCollector{})
+var registeredPG = RegisterCollector(PostgresCollector{})
