@@ -64,7 +64,7 @@ func (c MariaDBCollector) Collect() (models.Model, error) {
 					'database', catalog_name,
 					'schema', schema_name,
 					'tables', case when tables.tbl is null then json_array() else json_arrayagg(tables.tbl) end
-				) as database
+				)
 			from information_schema.schemata
 				left join (
 					select
@@ -147,9 +147,10 @@ func (c MariaDBCollector) Collect() (models.Model, error) {
 								where constraint_type = 'FOREIGN KEY'
 								group by table_schema, table_name, referenced_table_name, constraint_name
 							) fk_cols
+							group by table_schema, table_name
 						) fkeys
 					where table_schema != 'information_schema'
-					group by tables.table_schema, tables.table_name
+					group by tables.table_catalog, tables.table_schema, tables.table_name
 				) tables on tables.table_catalog = catalog_name and tables.table_schema = schema_name
 			where schema_name != 'information_schema'
 			group by catalog_name, schema_name
