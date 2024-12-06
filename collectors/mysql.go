@@ -58,6 +58,13 @@ func (c MySQLCollector) Collect() (models.Model, error) {
 	if (config.Params == nil) {
 		config.Params = make(map[string]string)
 	}
+	/* In MySQL, the order of elements in arrays created by json_arrayagg is
+	   undefined. There's no good way to get around that, so we have to avoid
+	   this function. A workaround is to assemble the array as a string with
+	   the help of group_concat, wrapping that in square brackets) and casting
+	   the result back to JSON. However group_concat has a very low default
+	   limit for the length of the resulting string (1024). Thus we need to
+	   extend the limit in the connection settings. */
 	config.Params["group_concat_max_len"] = "1048576"
 	db, err := sql.Open("mysql", config.FormatDSN())
 	if err != nil {
