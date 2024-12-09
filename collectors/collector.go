@@ -9,7 +9,7 @@ type Collector interface {
 	URISchema() (string)
 	Description() (string)
 	Initialize(arg string) (Collector, error)
-	InitializeFromConfig(keys []*ini.Key) (Collector, error)
+	InitializeFromConfig(section *ini.Section) (Collector, error)
 	InitializeDefault() (Collector, error)
 	Collect() (models.Model, error)
 }

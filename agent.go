@@ -57,7 +57,7 @@ func main() {
 			if !found {
 				log.Fatalf("Error in configuration: unknown collector %s", section.Name())
 			}
-			activeCollector, err := collector.InitializeFromConfig(section.Keys())
+			activeCollector, err := collector.InitializeFromConfig(section)
 			if err != nil {
 				log.Fatalf("Error in configuration %s: %s", section.Name(), err)
 			}

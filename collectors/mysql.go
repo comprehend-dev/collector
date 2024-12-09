@@ -27,9 +27,9 @@ func (c MySQLCollector) Initialize(arg string) (Collector, error) {
 	return collector, nil
 }
 
-func (c MySQLCollector) InitializeFromConfig(keys []*ini.Key) (Collector, error) {
+func (c MySQLCollector) InitializeFromConfig(section *ini.Section) (Collector, error) {
 	var sb strings.Builder
-	for _, key := range keys {
+	for _, key := range section.Keys() {
 		sb.WriteString(key.Name())
 		sb.WriteString("=")
 		sb.WriteString(key.String())

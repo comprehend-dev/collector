@@ -27,9 +27,9 @@ func (c MariaDBCollector) Initialize(arg string) (Collector, error) {
 	return collector, nil
 }
 
-func (c MariaDBCollector) InitializeFromConfig(keys []*ini.Key) (Collector, error) {
+func (c MariaDBCollector) InitializeFromConfig(section *ini.Section) (Collector, error) {
 	var sb strings.Builder
-	for _, key := range keys {
+	for _, key := range section.Keys() {
 		sb.WriteString(key.Name())
 		sb.WriteString("=")
 		sb.WriteString(key.String())
