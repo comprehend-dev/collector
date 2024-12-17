@@ -119,18 +119,24 @@ func main() {
 
 	if len(activeCollectors) == 0 {
 		// No arguments. Give collectors a chance to auto-detect
+		var errors string = ""
 		for _, collector := range collectors.Collectors {
 			defaultCollector, err := collector.InitializeDefault()
 			if err != nil {
-				log.Fatalf("Error trying to auto-detect things to collect: %s\n\nYou may need to specify things to collect manually using command line options.\nSee --help for details.", err)
-			}
-			if defaultCollector != nil {
+				errors = fmt.Sprintf("%s%s: %s\n", errors, collector.URISchema(), err)
+			} else if defaultCollector != nil {
 				activeCollectors = append(activeCollectors, defaultCollector);
 			}
 		}
 
 		if len(activeCollectors) == 0 {
-			log.Fatal("Did not find anything to collect. Please specify things you want to sync via command line options.\nSee --help for details.")
+			log.Fatalf("Did not find anything to collect. Please specify things you want to sync via command line options.\nSee --help for details.\n\nErrors encountered in auto-detection:\n%s", errors)
+		} else {
+			names := activeCollectors[0].URISchema()
+			for _, collector := range activeCollectors[1:] {
+				names = fmt.Sprintf("%s, %s", names, collector.URISchema())
+			}
+			log.Printf("Found these collectors automatically: %s\n", names)
 		}
 	}
 
@@ -174,7 +180,7 @@ func main() {
 
 	// Run tasks until interrupted.
 	ticker := time.NewTicker(60 * time.Second)
-	fmt.Println("comprehend.dev agent started for organization ", organization, ", importing into document ", document)
+	log.Println("comprehend.dev agent started for organization ", organization, ", importing into document ", document)
 
 	// Collect once immediately before we go into the waiting loop
 	collect()
@@ -182,7 +188,7 @@ func main() {
 	for {
 		select {
 		case <-interrupt:
-			fmt.Println("comprehend.dev agent exiting")
+			log.Println("comprehend.dev agent exiting")
 			return
 		case <-ticker.C:
 			collect()
