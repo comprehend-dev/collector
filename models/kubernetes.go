@@ -7,6 +7,8 @@ import (
 
 type KubernetesModel struct {
 	Deployments []Deployment `json:"deployments"`
+	Jobs []Job `json:"jobs"`
+	CronJobs []CronJob `json:"cronjobs"`
 }
 
 func (m KubernetesModel) ToJSON() ([]byte, error) {
@@ -19,14 +21,33 @@ type Deployment struct {
 	Replicas	int32		`json:"replicas"`
 	Paused		bool		`json:"paused"`
 	Selector	Selector 	`json:"selector"`
-	Template	Template	`json:"template"`
+	Template	PodTemplate	`json:"template"`
+}
+
+type Job struct {
+	Namespace	string		`json:"namespace"`
+	Name		string		`json:"name"`
+	Parallelism	int32		`json:"parallelism"`
+	Completions	int32		`json:"completions"`
+	Suspend		bool		`json:"suspend"`
+	Selector	Selector 	`json:"selector"`
+	Template	PodTemplate	`json:"template"`
+}
+
+type CronJob struct {
+	Namespace	string		`json:"namespace"`
+	Name		string		`json:"name"`
+	Schedule	string		`json:"schedule"`
+	TimeZone	string		`json:"timezone"`
+	Suspend		bool		`json:"suspend"`
+	JobTemplate	Job		`json:"jobtemplate"`
 }
 
 type Selector struct {
 	MatchLabels	map[string]string	`json:"matchLabels"`
 }
 
-type Template struct {
+type PodTemplate struct {
 	Labels		map[string]string	`json:"labels"`
 	Containers	[]Container		`json:"containers"`
 }

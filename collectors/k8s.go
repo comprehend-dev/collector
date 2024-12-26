@@ -9,6 +9,7 @@ import (
 	"github.com/comprehend-dev/comprehend.dev/agent/models"
 	"github.com/go-ini/ini"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
@@ -96,6 +97,32 @@ func (c KubernetesCollector) Description() (string) {
 	return "Kubernetes connection string/URI"
 }
 
+func (c KubernetesCollector) CollectContainers(containerList []corev1.Container) ([]models.Container, error) {
+	containers := make([]models.Container, len(containerList))
+	for i, container := range containerList {
+		p := make([]models.ContainerPort, len(container.Ports))
+		for i, port := range container.Ports {
+			protocol, err := models.ParseProtocol(fmt.Sprintf("%s", port.Protocol))
+			if err != nil {
+				return nil, err
+			}
+			p[i] = models.ContainerPort{
+				ContainerPort: port.ContainerPort,
+				HostPort: port.HostPort,
+				HostIP: port.HostIP,
+				Name: port.Name,
+				Protocol: protocol,
+			}
+		}
+		containers[i] = models.Container{
+			Name: container.Name,
+			Image: container.Image,
+			Ports: p,
+		}
+	}
+	return containers, nil
+}
+
 func (c KubernetesCollector) Collect() (models.Model, error) {
 	deployments, err := c.clientSet.AppsV1().Deployments(c.namespace).List(context.TODO(), metav1.ListOptions{})
 	if err != nil {
@@ -104,44 +131,90 @@ func (c KubernetesCollector) Collect() (models.Model, error) {
 	//TODO: pagination
 	d := make([]models.Deployment, len(deployments.Items))
 	for i, deployment := range deployments.Items {
-		c := make([]models.Container, len(deployment.Spec.Template.Spec.Containers))
-		for i, container := range deployment.Spec.Template.Spec.Containers {
-			p := make([]models.ContainerPort, len(container.Ports))
-			for i, port := range container.Ports {
-				protocol, err := models.ParseProtocol(fmt.Sprintf("%s", port.Protocol))
-				if err != nil {
-					return nil, err
-				}
-				p[i] = models.ContainerPort{
-					ContainerPort: port.ContainerPort,
-					HostPort: port.HostPort,
-					HostIP: port.HostIP,
-					Name: port.Name,
-					Protocol: protocol,
-				}
-			}
-			c[i] = models.Container{
-				Name: container.Name,
-				Image: container.Image,
-				Ports: p,
-			}
+		containers, err := c.CollectContainers(deployment.Spec.Template.Spec.Containers)
+		if err != nil {
+			return nil, err
 		}
-
 		d[i] = models.Deployment{
 			Namespace: deployment.Namespace,
 			Name: deployment.Name,
 			Replicas: *deployment.Spec.Replicas,
+			Paused: deployment.Spec.Paused,
 			Selector: models.Selector{
 				MatchLabels: deployment.Spec.Selector.MatchLabels,
 			},
-			Template: models.Template{
+			Template: models.PodTemplate{
 				Labels: deployment.Spec.Template.Labels,
-				Containers: c,
+				Containers: containers,
 			},
 		}
 	}
 
-	return models.KubernetesModel{Deployments: d}, nil
+	jobs, err := c.clientSet.BatchV1().Jobs(c.namespace).List(context.TODO(), metav1.ListOptions{})
+	if err != nil {
+		return nil, err
+	}
+	j := make([]models.Job, len(jobs.Items))
+	for i, job := range jobs.Items {
+		containers, err := c.CollectContainers(job.Spec.Template.Spec.Containers)
+		if err != nil {
+			return nil, err
+		}
+		j[i] = models.Job{
+			Namespace: job.Namespace,
+			Name: job.Name,
+			Parallelism: *job.Spec.Parallelism,
+			Completions: *job.Spec.Completions,
+			Suspend: *job.Spec.Suspend,
+			Selector: models.Selector{
+				MatchLabels: job.Spec.Selector.MatchLabels,
+			},
+			Template: models.PodTemplate{
+				Labels: job.Spec.Template.Labels,
+				Containers: containers,
+			},
+		}
+	}
+
+	cronjobs, err := c.clientSet.BatchV1().CronJobs(c.namespace).List(context.TODO(), metav1.ListOptions{})
+	if err != nil {
+		return nil, err
+	}
+	cj := make([]models.CronJob, len(cronjobs.Items))
+	for i, cronjob := range cronjobs.Items {
+		job := cronjob.Spec.JobTemplate
+		containers, err := c.CollectContainers(job.Spec.Template.Spec.Containers)
+		if err != nil {
+			return nil, err
+		}
+		cj[i] = models.CronJob{
+			Namespace: cronjob.Namespace,
+			Name: cronjob.Name,
+			Schedule: cronjob.Spec.Schedule,
+			TimeZone: *cronjob.Spec.TimeZone,
+			Suspend: *cronjob.Spec.Suspend,
+			JobTemplate: models.Job{
+				Namespace: job.Namespace,
+				Name: job.Name,
+				Parallelism: *job.Spec.Parallelism,
+				Completions: *job.Spec.Completions,
+				Suspend: *job.Spec.Suspend,
+				Selector: models.Selector{
+					MatchLabels: job.Spec.Selector.MatchLabels,
+				},
+				Template: models.PodTemplate{
+					Labels: job.Spec.Template.Labels,
+					Containers: containers,
+				},
+			},
+		}
+	}
+
+	return models.KubernetesModel{
+		Deployments: d,
+		Jobs: j,
+		CronJobs: cj,
+	}, nil
 }
 
 var registeredK8s = RegisterCollector(KubernetesCollector{})
