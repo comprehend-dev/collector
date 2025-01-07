@@ -3,12 +3,15 @@ package models
 import (
 	"encoding/json"
 	"fmt"
+	"time"
 )
 
 type KubernetesModel struct {
 	Deployments []Deployment `json:"deployments"`
 	Jobs []Job `json:"jobs"`
 	CronJobs []CronJob `json:"cronjobs"`
+	Pods []Pod `json:"pods"`
+	Nodes []Node `json:"nodes"`
 }
 
 func (m KubernetesModel) ToJSON() ([]byte, error) {
@@ -16,12 +19,14 @@ func (m KubernetesModel) ToJSON() ([]byte, error) {
 }
 
 type Deployment struct {
-	Namespace	string		`json:"namespace"`
-	Name		string		`json:"name"`
-	Replicas	int32		`json:"replicas"`
-	Paused		bool		`json:"paused"`
-	Selector	Selector 	`json:"selector"`
-	Template	PodTemplate	`json:"template"`
+	Namespace		string		`json:"namespace"`
+	Name			string		`json:"name"`
+	Replicas		int32		`json:"replicas"`
+	Paused			bool		`json:"paused"`
+	ExistingReplicas	int32		`json:"existingreplicas"`
+	AvailableReplicas	int32		`json:"availablereplicas"`
+	Selector		Selector 	`json:"selector"`
+	Template		PodTemplate	`json:"template"`
 }
 
 type Job struct {
@@ -52,6 +57,20 @@ type PodTemplate struct {
 	Containers	[]Container		`json:"containers"`
 }
 
+type Pod struct {
+	Namespace		string			`json:"namespace"`
+	Name			string			`json:"name"`
+	Labels			map[string]string	`json:"labels"`
+	Phase			string			`json:"phase"`
+	Message			string			`json:"message"`
+	Reason			string			`json:"reason"`
+	HostIP			string			`json:"hostip"`
+	NodeName		string			`json:"nodeName"`
+	StartTime		time.Time		`json:"startTime"`
+	CurrentCPUUsage		float64			`json:"currentCPUUsage"`
+	CurrentMemoryUsage	float64			`json:"currentMemoryUsage"`
+}
+
 type Container struct {
 	Name	string		`json:"name"`
 	Image	string		`json:"image"`
@@ -64,6 +83,12 @@ type ContainerPort struct {
 	HostIP		string		`json:"hostIP"`
 	Name		string		`json:"name"`
 	Protocol	Protocol	`json:"protocol"`
+}
+
+type Node struct {
+	Name 			string	`json:"name"`
+	CurrentCPUUsage		float64	`json:"currentCPUUsage"`
+	CurrentMemoryUsage 	float64	`json:"currentMemoryUsage"`
 }
 
 type Protocol string

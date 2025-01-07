@@ -14,12 +14,14 @@ import (
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/client-go/util/homedir"
+	"k8s.io/metrics/pkg/client/clientset/versioned"
 )
 
 type KubernetesCollector struct {
 	Collector
 	namespace string
 	clientSet *kubernetes.Clientset
+	metricsClientSet *versioned.Clientset
 }
 
 /* For kubernetes the agent runs either inside a pod in the cluster, in which
@@ -31,7 +33,7 @@ func (c KubernetesCollector) Initialize(arg string) (Collector, error) {
 	var config *rest.Config
 	var err error
 	var namespace string
-	
+
 	if delim > -1 {
 		// We got an explicit config file path and namespace separated by space
 		var path string
@@ -60,8 +62,12 @@ func (c KubernetesCollector) Initialize(arg string) (Collector, error) {
 	if err != nil {
 		return nil, fmt.Errorf("Failed to create the k8s client set. Error - %s", err)
 	}
+	metricsClientSet, err := versioned.NewForConfig(config)
+	if err != nil {
+		return nil, fmt.Errorf("Failed to create the k8s metrics client set. Error - %s", err)
+	}
 
-	collector := KubernetesCollector{nil, namespace, clientSet}
+	collector := KubernetesCollector{nil, namespace, clientSet, metricsClientSet}
 	return collector, nil
 }
 
@@ -124,6 +130,56 @@ func (c KubernetesCollector) CollectContainers(containerList []corev1.Container)
 }
 
 func (c KubernetesCollector) Collect() (models.Model, error) {
+	nodeMetrics, err := c.metricsClientSet.MetricsV1beta1().NodeMetricses().List(context.TODO(), metav1.ListOptions{})
+	nodes := make([]models.Node, len(nodeMetrics.Items))
+	if err == nil {
+		for i, node := range nodeMetrics.Items {
+			cpuUsage := node.Usage["cpu"]
+			memUsage := node.Usage["memory"]
+			nodes[i] = models.Node{
+				Name: node.Name,
+				CurrentCPUUsage: cpuUsage.AsFloat64Slow(),
+				CurrentMemoryUsage: memUsage.AsFloat64Slow(),
+			}
+		}
+	}
+
+	pods, err := c.clientSet.CoreV1().Pods(c.namespace).List(context.TODO(), metav1.ListOptions{})
+	if err != nil {
+		return nil, err
+	}
+	p := make([]models.Pod, len(pods.Items))
+	for i, pod := range pods.Items {
+		var cpu = 0.0
+		var mem = 0.0 // Actually should be int, but Javascript only has floats anyway and this avoids having to deal with big ints
+		if string(pod.Status.Phase) == "Running" {
+			podMetrics, err := c.metricsClientSet.MetricsV1beta1().PodMetricses(c.namespace).Get(context.TODO(), pod.Name, metav1.GetOptions{})
+			if err == nil {
+				for _, container := range podMetrics.Containers {
+					cpuUsage := container.Usage["cpu"]
+					cpu += cpuUsage.AsFloat64Slow()
+
+					memUsage := container.Usage["memory"]
+					mem += memUsage.AsFloat64Slow()
+				}
+			}
+		}
+
+		p[i] = models.Pod{
+			Namespace: pod.Namespace,
+			Name: pod.Name,
+			Labels: pod.Labels,
+			Phase: string(pod.Status.Phase),
+			Message: pod.Status.Message,
+			Reason: pod.Status.Reason,
+			HostIP: pod.Status.HostIP,
+			NodeName: pod.Spec.NodeName,
+			StartTime: pod.Status.StartTime.Time,
+			CurrentCPUUsage: cpu,
+			CurrentMemoryUsage: mem,
+		}
+	}
+
 	deployments, err := c.clientSet.AppsV1().Deployments(c.namespace).List(context.TODO(), metav1.ListOptions{})
 	if err != nil {
 		return nil, err
@@ -214,6 +270,8 @@ func (c KubernetesCollector) Collect() (models.Model, error) {
 		Deployments: d,
 		Jobs: j,
 		CronJobs: cj,
+		Pods: p,
+		Nodes: nodes,
 	}, nil
 }
 
