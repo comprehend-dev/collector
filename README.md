@@ -7,6 +7,7 @@ implemented), containers (not yet implemented), etc.
 ```
 Usage: ./agent [options] [arguments]
 Options:
+    --config <path>         A configuration file containing additional options.
     --apikey <value>        The comprehend.dev API key you created ("API Keys" in the menu).
     --organization <value>  Your comprehend.dev organization slug.
     --document <value>      The document to import the schema to.
