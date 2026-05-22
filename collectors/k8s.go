@@ -103,6 +103,10 @@ func (c KubernetesCollector) Description() (string) {
 	return "Kubernetes connection string/URI"
 }
 
+func (c KubernetesCollector) HostInfo() *HostInfo {
+	return nil
+}
+
 func (c KubernetesCollector) CollectContainers(containerList []corev1.Container) ([]models.Container, error) {
 	containers := make([]models.Container, len(containerList))
 	for i, container := range containerList {

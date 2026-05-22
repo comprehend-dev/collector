@@ -2,6 +2,8 @@ package collectors
 
 import (
 	"database/sql"
+	"net"
+	"strconv"
 	"github.com/comprehend-dev/comprehend.dev/agent/models"
 	"github.com/go-ini/ini"
 	"github.com/go-sql-driver/mysql"
@@ -10,11 +12,31 @@ import (
 
 type MySQLCollector struct {
 	Collector
-	connStr string
+	connStr  string
+	hostInfo *HostInfo
+}
+
+func parseMySQLHostInfo(connStr string) *HostInfo {
+	config, err := mysql.ParseDSN(connStr)
+	if err != nil {
+		return &HostInfo{Host: "localhost", Port: 3306}
+	}
+	host, portStr, err := net.SplitHostPort(config.Addr)
+	if err != nil {
+		return &HostInfo{Host: config.Addr, Port: 3306}
+	}
+	port := 3306
+	if p, err := strconv.Atoi(portStr); err == nil {
+		port = p
+	}
+	if host == "" {
+		host = "localhost"
+	}
+	return &HostInfo{Host: host, Port: port}
 }
 
 func (c MySQLCollector) Initialize(arg string) (Collector, error) {
-	collector := MySQLCollector{nil, arg}
+	collector := MySQLCollector{nil, arg, parseMySQLHostInfo(arg)}
 	db, err := sql.Open("mysql", collector.connStr)
 	if err != nil {
 		return nil, err
@@ -25,6 +47,10 @@ func (c MySQLCollector) Initialize(arg string) (Collector, error) {
 	}
 	db.Close()
 	return collector, nil
+}
+
+func (c MySQLCollector) HostInfo() *HostInfo {
+	return c.hostInfo
 }
 
 func (c MySQLCollector) InitializeFromConfig(section *ini.Section) (Collector, error) {
@@ -180,12 +206,12 @@ func (c MySQLCollector) Collect() (models.Model, error) {
 	defer rows.Close()
 
 	rows.Next();
-	var databases string;
+	var databases []byte;
 	if err := rows.Scan(&databases); err != nil {
 		return nil, err
 	}
 
-	return *models.NewJSONModel(databases), nil
+	return models.NewDatabaseModel(c.hostInfo.Host, c.hostInfo.Port, databases), nil
 }
 
 var registeredMySQL = RegisterCollector(MySQLCollector{})

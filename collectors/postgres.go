@@ -5,16 +5,54 @@ import (
 	"github.com/comprehend-dev/comprehend.dev/agent/models"
 	_ "github.com/lib/pq"
 	"github.com/go-ini/ini"
+	"net/url"
+	"strconv"
 	"strings"
 )
 
 type PostgresCollector struct {
 	Collector
-	connStr string
+	connStr  string
+	hostInfo *HostInfo
+}
+
+func parsePostgresHostInfo(connStr string) *HostInfo {
+	host := "localhost"
+	port := 5432
+
+	// Try URI format first: postgresql://user:pass@host:port/db
+	if strings.HasPrefix(connStr, "postgres://") || strings.HasPrefix(connStr, "postgresql://") {
+		if u, err := url.Parse(connStr); err == nil {
+			if u.Hostname() != "" {
+				host = u.Hostname()
+			}
+			if p, err := strconv.Atoi(u.Port()); err == nil {
+				port = p
+			}
+			return &HostInfo{Host: host, Port: port}
+		}
+	}
+
+	// Key=value format: host=localhost port=5432 ...
+	for _, part := range strings.Fields(connStr) {
+		k, v, ok := strings.Cut(part, "=")
+		if !ok {
+			continue
+		}
+		switch k {
+		case "host":
+			host = v
+		case "port":
+			if p, err := strconv.Atoi(v); err == nil {
+				port = p
+			}
+		}
+	}
+	return &HostInfo{Host: host, Port: port}
 }
 
 func (c PostgresCollector) Initialize(arg string) (Collector, error) {
-	collector := PostgresCollector{nil, arg}
+	collector := PostgresCollector{nil, arg, parsePostgresHostInfo(arg)}
 	db, err := sql.Open("postgres", collector.connStr)
 	if err != nil {
 		return nil, err
@@ -25,6 +63,10 @@ func (c PostgresCollector) Initialize(arg string) (Collector, error) {
 	}
 	db.Close()
 	return collector, nil
+}
+
+func (c PostgresCollector) HostInfo() *HostInfo {
+	return c.hostInfo
 }
 
 func (c PostgresCollector) InitializeFromConfig(section *ini.Section) (Collector, error) {
@@ -133,12 +175,12 @@ func (c PostgresCollector) Collect() (models.Model, error) {
 	defer rows.Close()
 
 	rows.Next();
-	var databases string;
+	var databases []byte;
 	if err := rows.Scan(&databases); err != nil {
 		return nil, err
 	}
 
-	return *models.NewJSONModel(databases), nil
+	return models.NewDatabaseModel(c.hostInfo.Host, c.hostInfo.Port, databases), nil
 }
 
 var registeredPG = RegisterCollector(PostgresCollector{})

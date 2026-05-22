@@ -2,19 +2,41 @@ package collectors
 
 import (
 	"database/sql"
+	"net"
+	"strconv"
 	"github.com/comprehend-dev/comprehend.dev/agent/models"
 	"github.com/go-ini/ini"
-	_ "github.com/go-sql-driver/mysql"
+	"github.com/go-sql-driver/mysql"
 	"strings"
 )
 
 type MariaDBCollector struct {
 	Collector
-	connStr string
+	connStr  string
+	hostInfo *HostInfo
+}
+
+func parseMariaDBHostInfo(connStr string) *HostInfo {
+	config, err := mysql.ParseDSN(connStr)
+	if err != nil {
+		return &HostInfo{Host: "localhost", Port: 3306}
+	}
+	host, portStr, err := net.SplitHostPort(config.Addr)
+	if err != nil {
+		return &HostInfo{Host: config.Addr, Port: 3306}
+	}
+	port := 3306
+	if p, err := strconv.Atoi(portStr); err == nil {
+		port = p
+	}
+	if host == "" {
+		host = "localhost"
+	}
+	return &HostInfo{Host: host, Port: port}
 }
 
 func (c MariaDBCollector) Initialize(arg string) (Collector, error) {
-	collector := MariaDBCollector{nil, arg}
+	collector := MariaDBCollector{nil, arg, parseMariaDBHostInfo(arg)}
 	db, err := sql.Open("mysql", collector.connStr)
 	if err != nil {
 		return nil, err
@@ -25,6 +47,10 @@ func (c MariaDBCollector) Initialize(arg string) (Collector, error) {
 	}
 	db.Close()
 	return collector, nil
+}
+
+func (c MariaDBCollector) HostInfo() *HostInfo {
+	return c.hostInfo
 }
 
 func (c MariaDBCollector) InitializeFromConfig(section *ini.Section) (Collector, error) {
@@ -162,12 +188,12 @@ func (c MariaDBCollector) Collect() (models.Model, error) {
 	defer rows.Close()
 
 	rows.Next();
-	var databases string;
+	var databases []byte;
 	if err := rows.Scan(&databases); err != nil {
 		return nil, err
 	}
 
-	return *models.NewJSONModel(databases), nil
+	return models.NewDatabaseModel(c.hostInfo.Host, c.hostInfo.Port, databases), nil
 }
 
 var registeredMariaDB = RegisterCollector(MariaDBCollector{})

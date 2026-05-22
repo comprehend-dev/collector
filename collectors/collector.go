@@ -5,6 +5,11 @@ import (
 	"github.com/comprehend-dev/comprehend.dev/agent/models"
 )
 
+type HostInfo struct {
+	Host string `json:"host"`
+	Port int    `json:"port"`
+}
+
 type Collector interface {
 	URISchema() (string)
 	Description() (string)
@@ -12,6 +17,7 @@ type Collector interface {
 	InitializeFromConfig(section *ini.Section) (Collector, error)
 	InitializeDefault() (Collector, error)
 	Collect() (models.Model, error)
+	HostInfo() *HostInfo
 }
 
 var Collectors map[string]Collector = make(map[string]Collector);

@@ -145,7 +145,14 @@ func main() {
 
 	collect := func () {
 		for _, collector := range activeCollectors {
-			url := comprehendURL + collector.URISchema() + "?document=" + url.QueryEscape(document)
+			var reqURL string
+			if collector.HostInfo() != nil {
+				// Database collectors: no document param, host info is in the payload
+				reqURL = comprehendURL + collector.URISchema()
+			} else {
+				// Non-database collectors (k8s): keep existing document param
+				reqURL = comprehendURL + collector.URISchema() + "?document=" + url.QueryEscape(document)
+			}
 
 			model, err := collector.Collect()
 			if err != nil {
@@ -157,7 +164,7 @@ func main() {
 				log.Fatalf("Error getting JSON from model: %s", err)
 			}
 
-			req, err := http.NewRequest(http.MethodPost, url, bytes.NewBuffer(json))
+			req, err := http.NewRequest(http.MethodPost, reqURL, bytes.NewBuffer(json))
 			if err != nil {
 				log.Fatalf("Could not create http request: %s\n", err)
 			}
