@@ -174,7 +174,7 @@ func main() {
 
 	// Run tasks until interrupted.
 	ticker := time.NewTicker(60 * time.Second)
-	log.Println("comprehend.dev agent started for organization ", organization)
+	log.Println("comprehend.dev agent started for organization", organization)
 
 	// Collect once immediately before we go into the waiting loop
 	collect()
