@@ -7,6 +7,7 @@ import (
 )
 
 type KubernetesModel struct {
+	ClusterHost string `json:"clusterHost"`
 	Deployments []Deployment `json:"deployments"`
 	Jobs []Job `json:"jobs"`
 	CronJobs []CronJob `json:"cronjobs"`

@@ -20,6 +20,7 @@ import (
 type KubernetesCollector struct {
 	Collector
 	namespace string
+	clusterHost string
 	clientSet *kubernetes.Clientset
 	metricsClientSet *versioned.Clientset
 }
@@ -67,7 +68,7 @@ func (c KubernetesCollector) Initialize(arg string) (Collector, error) {
 		return nil, fmt.Errorf("Failed to create the k8s metrics client set. Error - %s", err)
 	}
 
-	collector := KubernetesCollector{nil, namespace, clientSet, metricsClientSet}
+	collector := KubernetesCollector{nil, namespace, config.Host, clientSet, metricsClientSet}
 	return collector, nil
 }
 
@@ -271,6 +272,7 @@ func (c KubernetesCollector) Collect() (models.Model, error) {
 	}
 
 	return models.KubernetesModel{
+		ClusterHost: c.clusterHost,
 		Deployments: d,
 		Jobs: j,
 		CronJobs: cj,

@@ -27,7 +27,6 @@ func main() {
 
 	var apiKey string
 	var organization string
-	var document string
 	var comprehendURL string
 
 	flag.Func("config", "Path to configuration file", func(path string) error {
@@ -44,9 +43,6 @@ func main() {
 				}
 				if organization == "" {
 					organization = section.Key("organization").String();
-				}
-				if document == "" {
-					document = section.Key("document").String();
 				}
 				if comprehendURL == "" || comprehendURL == defaultComprehendURL {
 					comprehendURL = section.Key("comprehend-url").String();
@@ -68,7 +64,6 @@ func main() {
 
 	flag.StringVar(&apiKey, "apikey", apiKey, "The comprehend.dev API key you created (\"API Keys\" in the menu)");
 	flag.StringVar(&organization, "organization", organization, "Your comprehend.dev organization slug.");
-	flag.StringVar(&document, "document", document, "The document to import the schema to.");
 	flag.StringVar(&comprehendURL, "comprehend-url", defaultComprehendURL, "The URL of the ingestion service - for development use only.");
 
 	for name, collector := range collectors.Collectors {
@@ -88,7 +83,6 @@ func main() {
 		fmt.Fprintf(flag.CommandLine.Output(), "    --config <path>     A configuration file containing additional options.\n")
 		fmt.Fprintf(flag.CommandLine.Output(), "    --apikey <value>    The comprehend.dev API key you created (\"API Keys\" in the menu).\n")
 		fmt.Fprintf(flag.CommandLine.Output(), "    --organization <value>    Your comprehend.dev organization slug.\n")
-		fmt.Fprintf(flag.CommandLine.Output(), "    --document <value>    The document to import the schema to.\n")
 		// comprehend-url is intentionally undocumented as it's meant for development use only
 		for name, collector := range collectors.Collectors {
 			fmt.Fprintf(flag.CommandLine.Output(), "    --%s <value>    %s\n", name, collector.Description())
@@ -145,14 +139,7 @@ func main() {
 
 	collect := func () {
 		for _, collector := range activeCollectors {
-			var reqURL string
-			if collector.HostInfo() != nil {
-				// Database collectors: no document param, host info is in the payload
-				reqURL = comprehendURL + collector.URISchema()
-			} else {
-				// Non-database collectors (k8s): keep existing document param
-				reqURL = comprehendURL + collector.URISchema() + "?document=" + url.QueryEscape(document)
-			}
+			reqURL := comprehendURL + collector.URISchema()
 
 			model, err := collector.Collect()
 			if err != nil {
@@ -187,7 +174,7 @@ func main() {
 
 	// Run tasks until interrupted.
 	ticker := time.NewTicker(60 * time.Second)
-	log.Println("comprehend.dev agent started for organization ", organization, ", importing into document ", document)
+	log.Println("comprehend.dev agent started for organization ", organization)
 
 	// Collect once immediately before we go into the waiting loop
 	collect()
