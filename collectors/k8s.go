@@ -184,23 +184,22 @@ func (c KubernetesCollector) Collect() (models.Model, error) {
 	}
 	p := make([]models.Pod, len(pods.Items))
 	for i, pod := range pods.Items {
-		containerCPU := make(map[string]float64)
-		containerMem := make(map[string]float64)
-		var totalCPU = 0.0
-		var totalMem = 0.0
+		containerMetrics := make(map[string]*models.ResourceUsage)
+		var podUsage *models.ResourceUsage
 		if string(pod.Status.Phase) == "Running" {
 			podMetrics, err := c.metricsClientSet.MetricsV1beta1().PodMetricses(c.namespace).Get(context.TODO(), pod.Name, metav1.GetOptions{})
 			if err == nil {
+				var totalCPU, totalMem float64
 				for _, container := range podMetrics.Containers {
 					cpuQty := container.Usage["cpu"]
 					memQty := container.Usage["memory"]
 					cpu := cpuQty.AsFloat64Slow()
 					mem := memQty.AsFloat64Slow()
-					containerCPU[container.Name] = cpu
-					containerMem[container.Name] = mem
+					containerMetrics[container.Name] = &models.ResourceUsage{CPU: cpu, Memory: mem}
 					totalCPU += cpu
 					totalMem += mem
 				}
+				podUsage = &models.ResourceUsage{CPU: totalCPU, Memory: totalMem}
 			} else {
 				warnPermissionOnce("pod metrics (via metrics.k8s.io)", err)
 			}
@@ -216,25 +215,23 @@ func (c KubernetesCollector) Collect() (models.Model, error) {
 				Name:          cs.Name,
 				RestartCount:  cs.RestartCount,
 				WaitingReason: waitingReason,
-				CPUUsage:      containerCPU[cs.Name],
-				MemoryUsage:   containerMem[cs.Name],
+				Metrics:       containerMetrics[cs.Name],
 			}
 		}
 		p[i] = models.Pod{
-			UID:                string(pod.UID),
-			Namespace:          pod.Namespace,
-			Name:               pod.Name,
-			Labels:             pod.Labels,
-			Phase:              string(pod.Status.Phase),
-			Terminating:        pod.DeletionTimestamp != nil,
-			Message:            pod.Status.Message,
-			Reason:             pod.Status.Reason,
-			HostIP:             pod.Status.HostIP,
-			NodeName:           pod.Spec.NodeName,
-			StartTime:          pod.Status.StartTime.Time,
-			CurrentCPUUsage:    totalCPU,
-			CurrentMemoryUsage: totalMem,
-			ContainerStatuses:  containerStatuses,
+			UID:              string(pod.UID),
+			Namespace:        pod.Namespace,
+			Name:             pod.Name,
+			Labels:           pod.Labels,
+			Phase:            string(pod.Status.Phase),
+			Terminating:      pod.DeletionTimestamp != nil,
+			Message:          pod.Status.Message,
+			Reason:           pod.Status.Reason,
+			HostIP:           pod.Status.HostIP,
+			NodeName:         pod.Spec.NodeName,
+			StartTime:        pod.Status.StartTime.Time,
+			Metrics:          podUsage,
+			ContainerStatuses: containerStatuses,
 		}
 	}
 

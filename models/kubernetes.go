@@ -59,6 +59,11 @@ type PodTemplate struct {
 	Containers	[]Container		`json:"containers"`
 }
 
+type ResourceUsage struct {
+	CPU    float64 `json:"cpuUsage"`
+	Memory float64 `json:"memoryUsage"`
+}
+
 type Pod struct {
 	UID			string			`json:"uid"`
 	Namespace		string			`json:"namespace"`
@@ -71,17 +76,15 @@ type Pod struct {
 	HostIP			string			`json:"hostip"`
 	NodeName		string			`json:"nodeName"`
 	StartTime		time.Time		`json:"startTime"`
-	CurrentCPUUsage		float64			`json:"currentCPUUsage"`
-	CurrentMemoryUsage	float64			`json:"currentMemoryUsage"`
+	Metrics			*ResourceUsage		`json:"metrics,omitempty"`
 	ContainerStatuses	[]ContainerStatus	`json:"containerStatuses"`
 }
 
 type ContainerStatus struct {
-	Name		string	`json:"name"`
-	RestartCount	int32	`json:"restartCount"`
-	WaitingReason	string	`json:"waitingReason,omitempty"`
-	CPUUsage	float64	`json:"cpuUsage,omitempty"`
-	MemoryUsage	float64	`json:"memoryUsage,omitempty"`
+	Name		string		`json:"name"`
+	RestartCount	int32		`json:"restartCount"`
+	WaitingReason	string		`json:"waitingReason,omitempty"`
+	Metrics		*ResourceUsage	`json:"metrics,omitempty"`
 }
 
 type KubernetesEvent struct {
