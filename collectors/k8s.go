@@ -155,33 +155,53 @@ func (c KubernetesCollector) Collect() (models.Model, error) {
 	}
 	p := make([]models.Pod, len(pods.Items))
 	for i, pod := range pods.Items {
-		var cpu = 0.0
-		var mem = 0.0 // Actually should be int, but Javascript only has floats anyway and this avoids having to deal with big ints
+		containerCPU := make(map[string]float64)
+		containerMem := make(map[string]float64)
+		var totalCPU = 0.0
+		var totalMem = 0.0
 		if string(pod.Status.Phase) == "Running" {
 			podMetrics, err := c.metricsClientSet.MetricsV1beta1().PodMetricses(c.namespace).Get(context.TODO(), pod.Name, metav1.GetOptions{})
 			if err == nil {
 				for _, container := range podMetrics.Containers {
-					cpuUsage := container.Usage["cpu"]
-					cpu += cpuUsage.AsFloat64Slow()
-
-					memUsage := container.Usage["memory"]
-					mem += memUsage.AsFloat64Slow()
+					cpu := container.Usage["cpu"].AsFloat64Slow()
+					mem := container.Usage["memory"].AsFloat64Slow()
+					containerCPU[container.Name] = cpu
+					containerMem[container.Name] = mem
+					totalCPU += cpu
+					totalMem += mem
 				}
 			}
 		}
 
+		containerStatuses := make([]models.ContainerStatus, len(pod.Status.ContainerStatuses))
+		for j, cs := range pod.Status.ContainerStatuses {
+			waitingReason := ""
+			if cs.State.Waiting != nil {
+				waitingReason = cs.State.Waiting.Reason
+			}
+			containerStatuses[j] = models.ContainerStatus{
+				Name:          cs.Name,
+				RestartCount:  cs.RestartCount,
+				WaitingReason: waitingReason,
+				CPUUsage:      containerCPU[cs.Name],
+				MemoryUsage:   containerMem[cs.Name],
+			}
+		}
 		p[i] = models.Pod{
-			Namespace: pod.Namespace,
-			Name: pod.Name,
-			Labels: pod.Labels,
-			Phase: string(pod.Status.Phase),
-			Message: pod.Status.Message,
-			Reason: pod.Status.Reason,
-			HostIP: pod.Status.HostIP,
-			NodeName: pod.Spec.NodeName,
-			StartTime: pod.Status.StartTime.Time,
-			CurrentCPUUsage: cpu,
-			CurrentMemoryUsage: mem,
+			UID:                string(pod.UID),
+			Namespace:          pod.Namespace,
+			Name:               pod.Name,
+			Labels:             pod.Labels,
+			Phase:              string(pod.Status.Phase),
+			Terminating:        pod.DeletionTimestamp != nil,
+			Message:            pod.Status.Message,
+			Reason:             pod.Status.Reason,
+			HostIP:             pod.Status.HostIP,
+			NodeName:           pod.Spec.NodeName,
+			StartTime:          pod.Status.StartTime.Time,
+			CurrentCPUUsage:    totalCPU,
+			CurrentMemoryUsage: totalMem,
+			ContainerStatuses:  containerStatuses,
 		}
 	}
 
@@ -271,6 +291,30 @@ func (c KubernetesCollector) Collect() (models.Model, error) {
 		}
 	}
 
+	events, err := c.clientSet.CoreV1().Events(c.namespace).List(context.TODO(), metav1.ListOptions{
+		FieldSelector: "type=Warning",
+	})
+	if err != nil {
+		return nil, err
+	}
+	ev := make([]models.KubernetesEvent, 0, len(events.Items))
+	for _, event := range events.Items {
+		if event.LastTimestamp.IsZero() {
+			continue
+		}
+		ev = append(ev, models.KubernetesEvent{
+			UID:                string(event.UID),
+			Namespace:          event.Namespace,
+			Reason:             event.Reason,
+			Message:            event.Message,
+			FirstTimestamp:     event.FirstTimestamp.Time,
+			LastTimestamp:      event.LastTimestamp.Time,
+			InvolvedObjectKind: event.InvolvedObject.Kind,
+			InvolvedObjectName: event.InvolvedObject.Name,
+			InvolvedObjectUID:  string(event.InvolvedObject.UID),
+		})
+	}
+
 	return models.KubernetesModel{
 		ClusterHost: c.clusterHost,
 		Deployments: d,
@@ -278,6 +322,7 @@ func (c KubernetesCollector) Collect() (models.Model, error) {
 		CronJobs: cj,
 		Pods: p,
 		Nodes: nodes,
+		Events: ev,
 	}, nil
 }
 

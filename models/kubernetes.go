@@ -13,6 +13,7 @@ type KubernetesModel struct {
 	CronJobs []CronJob `json:"cronjobs"`
 	Pods []Pod `json:"pods"`
 	Nodes []Node `json:"nodes"`
+	Events []KubernetesEvent `json:"events"`
 }
 
 func (m KubernetesModel) ToJSON() ([]byte, error) {
@@ -59,10 +60,12 @@ type PodTemplate struct {
 }
 
 type Pod struct {
+	UID			string			`json:"uid"`
 	Namespace		string			`json:"namespace"`
 	Name			string			`json:"name"`
 	Labels			map[string]string	`json:"labels"`
 	Phase			string			`json:"phase"`
+	Terminating		bool			`json:"terminating"`
 	Message			string			`json:"message"`
 	Reason			string			`json:"reason"`
 	HostIP			string			`json:"hostip"`
@@ -70,6 +73,27 @@ type Pod struct {
 	StartTime		time.Time		`json:"startTime"`
 	CurrentCPUUsage		float64			`json:"currentCPUUsage"`
 	CurrentMemoryUsage	float64			`json:"currentMemoryUsage"`
+	ContainerStatuses	[]ContainerStatus	`json:"containerStatuses"`
+}
+
+type ContainerStatus struct {
+	Name		string	`json:"name"`
+	RestartCount	int32	`json:"restartCount"`
+	WaitingReason	string	`json:"waitingReason,omitempty"`
+	CPUUsage	float64	`json:"cpuUsage,omitempty"`
+	MemoryUsage	float64	`json:"memoryUsage,omitempty"`
+}
+
+type KubernetesEvent struct {
+	UID			string		`json:"uid"`
+	Namespace		string		`json:"namespace"`
+	Reason			string		`json:"reason"`
+	Message			string		`json:"message"`
+	FirstTimestamp		time.Time	`json:"firstTimestamp"`
+	LastTimestamp		time.Time	`json:"lastTimestamp"`
+	InvolvedObjectKind	string		`json:"involvedObjectKind"`
+	InvolvedObjectName	string		`json:"involvedObjectName"`
+	InvolvedObjectUID	string		`json:"involvedObjectUID"`
 }
 
 type Container struct {
