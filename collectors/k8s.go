@@ -3,19 +3,41 @@ package collectors
 import (
 	"context"
 	"fmt"
+	"log"
 	"path/filepath"
 	"os"
 	"strings"
+	"sync"
 	"github.com/comprehend-dev/comprehend.dev/agent/models"
 	"github.com/go-ini/ini"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	appsv1 "k8s.io/api/apps/v1"
+	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/client-go/util/homedir"
 	"k8s.io/metrics/pkg/client/clientset/versioned"
 )
+
+var warnedOnce sync.Map
+
+// warnPermissionOnce logs a warning the first time a forbidden/unauthorized error is seen
+// for a given resource. Returns true if the error was a permissions error (caller may skip
+// returning the error and continue with empty data instead).
+func warnPermissionOnce(resource string, err error) bool {
+	if apierrors.IsForbidden(err) || apierrors.IsUnauthorized(err) {
+		if _, alreadyLogged := warnedOnce.LoadOrStore(resource, struct{}{}); !alreadyLogged {
+			log.Printf("WARNING: k8s %s collection disabled — insufficient RBAC permissions. "+
+				"Ensure the agent ServiceAccount has a Role with get/list/watch on %s. Error: %v",
+				resource, resource, err)
+		}
+		return true
+	}
+	return false
+}
 
 type KubernetesCollector struct {
 	Collector
@@ -136,8 +158,12 @@ func (c KubernetesCollector) CollectContainers(containerList []corev1.Container)
 
 func (c KubernetesCollector) Collect() (models.Model, error) {
 	nodeMetrics, err := c.metricsClientSet.MetricsV1beta1().NodeMetricses().List(context.TODO(), metav1.ListOptions{})
-	nodes := make([]models.Node, len(nodeMetrics.Items))
+	if err != nil {
+		warnPermissionOnce("node metrics (via metrics.k8s.io — requires ClusterRole)", err)
+	}
+	nodes := make([]models.Node, 0)
 	if err == nil {
+		nodes = make([]models.Node, len(nodeMetrics.Items))
 		for i, node := range nodeMetrics.Items {
 			cpuUsage := node.Usage["cpu"]
 			memUsage := node.Usage["memory"]
@@ -151,7 +177,10 @@ func (c KubernetesCollector) Collect() (models.Model, error) {
 
 	pods, err := c.clientSet.CoreV1().Pods(c.namespace).List(context.TODO(), metav1.ListOptions{})
 	if err != nil {
-		return nil, err
+		if !warnPermissionOnce("pods", err) {
+			return nil, err
+		}
+		pods = &corev1.PodList{}
 	}
 	p := make([]models.Pod, len(pods.Items))
 	for i, pod := range pods.Items {
@@ -172,6 +201,8 @@ func (c KubernetesCollector) Collect() (models.Model, error) {
 					totalCPU += cpu
 					totalMem += mem
 				}
+			} else {
+				warnPermissionOnce("pod metrics (via metrics.k8s.io)", err)
 			}
 		}
 
@@ -209,7 +240,10 @@ func (c KubernetesCollector) Collect() (models.Model, error) {
 
 	deployments, err := c.clientSet.AppsV1().Deployments(c.namespace).List(context.TODO(), metav1.ListOptions{})
 	if err != nil {
-		return nil, err
+		if !warnPermissionOnce("deployments", err) {
+			return nil, err
+		}
+		deployments = &appsv1.DeploymentList{}
 	}
 	//TODO: pagination
 	d := make([]models.Deployment, len(deployments.Items))
@@ -235,7 +269,10 @@ func (c KubernetesCollector) Collect() (models.Model, error) {
 
 	jobs, err := c.clientSet.BatchV1().Jobs(c.namespace).List(context.TODO(), metav1.ListOptions{})
 	if err != nil {
-		return nil, err
+		if !warnPermissionOnce("jobs", err) {
+			return nil, err
+		}
+		jobs = &batchv1.JobList{}
 	}
 	j := make([]models.Job, len(jobs.Items))
 	for i, job := range jobs.Items {
@@ -261,7 +298,10 @@ func (c KubernetesCollector) Collect() (models.Model, error) {
 
 	cronjobs, err := c.clientSet.BatchV1().CronJobs(c.namespace).List(context.TODO(), metav1.ListOptions{})
 	if err != nil {
-		return nil, err
+		if !warnPermissionOnce("cronjobs", err) {
+			return nil, err
+		}
+		cronjobs = &batchv1.CronJobList{}
 	}
 	cj := make([]models.CronJob, len(cronjobs.Items))
 	for i, cronjob := range cronjobs.Items {
@@ -297,7 +337,10 @@ func (c KubernetesCollector) Collect() (models.Model, error) {
 		FieldSelector: "type=Warning",
 	})
 	if err != nil {
-		return nil, err
+		if !warnPermissionOnce("events", err) {
+			return nil, err
+		}
+		events = &corev1.EventList{}
 	}
 	ev := make([]models.KubernetesEvent, 0, len(events.Items))
 	for _, event := range events.Items {
