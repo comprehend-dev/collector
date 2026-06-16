@@ -163,8 +163,10 @@ func (c KubernetesCollector) Collect() (models.Model, error) {
 			podMetrics, err := c.metricsClientSet.MetricsV1beta1().PodMetricses(c.namespace).Get(context.TODO(), pod.Name, metav1.GetOptions{})
 			if err == nil {
 				for _, container := range podMetrics.Containers {
-					cpu := container.Usage["cpu"].AsFloat64Slow()
-					mem := container.Usage["memory"].AsFloat64Slow()
+					cpuQty := container.Usage["cpu"]
+					memQty := container.Usage["memory"]
+					cpu := cpuQty.AsFloat64Slow()
+					mem := memQty.AsFloat64Slow()
 					containerCPU[container.Name] = cpu
 					containerMem[container.Name] = mem
 					totalCPU += cpu
