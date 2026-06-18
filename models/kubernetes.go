@@ -81,10 +81,13 @@ type Pod struct {
 }
 
 type ContainerStatus struct {
-	Name		string		`json:"name"`
-	RestartCount	int32		`json:"restartCount"`
-	WaitingReason	string		`json:"waitingReason,omitempty"`
-	Metrics		*ResourceUsage	`json:"metrics,omitempty"`
+	Name			string		`json:"name"`
+	Image			string		`json:"image,omitempty"`
+	RestartCount		int32		`json:"restartCount"`
+	Ready			bool		`json:"ready"`
+	WaitingReason		string		`json:"waitingReason,omitempty"`
+	WaitingMessage		string		`json:"waitingMessage,omitempty"`
+	Metrics			*ResourceUsage	`json:"metrics,omitempty"`
 }
 
 type KubernetesEvent struct {

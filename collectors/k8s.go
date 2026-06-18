@@ -208,14 +208,19 @@ func (c KubernetesCollector) Collect() (models.Model, error) {
 		containerStatuses := make([]models.ContainerStatus, len(pod.Status.ContainerStatuses))
 		for j, cs := range pod.Status.ContainerStatuses {
 			waitingReason := ""
+			waitingMessage := ""
 			if cs.State.Waiting != nil {
 				waitingReason = cs.State.Waiting.Reason
+				waitingMessage = cs.State.Waiting.Message
 			}
 			containerStatuses[j] = models.ContainerStatus{
-				Name:          cs.Name,
-				RestartCount:  cs.RestartCount,
-				WaitingReason: waitingReason,
-				Metrics:       containerMetrics[cs.Name],
+				Name:           cs.Name,
+				Image:          cs.Image,
+				RestartCount:   cs.RestartCount,
+				Ready:          cs.Ready,
+				WaitingReason:  waitingReason,
+				WaitingMessage: waitingMessage,
+				Metrics:        containerMetrics[cs.Name],
 			}
 		}
 		p[i] = models.Pod{
