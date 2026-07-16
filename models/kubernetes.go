@@ -87,6 +87,10 @@ type ContainerStatus struct {
 	Ready			bool		`json:"ready"`
 	WaitingReason		string		`json:"waitingReason,omitempty"`
 	WaitingMessage		string		`json:"waitingMessage,omitempty"`
+	// The container runtime's resolved image identifier — commonly digest-pinned, unlike Image
+	// which may still be a mutable tag. May not match Image if the runtime resolved it (see
+	// corev1.ContainerStatus.ImageID's doc comment).
+	ImageID			string		`json:"imageID,omitempty"`
 	Metrics			*ResourceUsage	`json:"metrics,omitempty"`
 }
 

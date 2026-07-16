@@ -220,6 +220,7 @@ func (c KubernetesCollector) Collect() (models.Model, error) {
 				Ready:          cs.Ready,
 				WaitingReason:  waitingReason,
 				WaitingMessage: waitingMessage,
+				ImageID:        cs.ImageID,
 				Metrics:        containerMetrics[cs.Name],
 			}
 		}
