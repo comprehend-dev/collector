@@ -70,14 +70,24 @@ func createFixture(t *testing.T, connStr string) {
 	require.NoError(t, err, "filling the fixture table")
 }
 
-func buildCollector(t *testing.T) string {
+func buildCollector(t *testing.T, version string) string {
 	t.Helper()
 
 	binary := filepath.Join(t.TempDir(), "collector")
-	build := exec.Command("go", "build", "-o", binary, ".")
+	build := exec.Command("go", "build", "-ldflags", "-X main.version="+version, "-o", binary, ".")
 	build.Stderr = os.Stderr
 	require.NoError(t, build.Run(), "building the collector")
 	return binary
+}
+
+// Releases stamp the version in through ldflags, and the collector reports it to ingestion, so a
+// build that silently loses it would be hard to notice.
+func TestVersionFlag(t *testing.T) {
+	binary := buildCollector(t, "1.2.3-test")
+
+	out, err := exec.Command(binary, "--version").Output()
+	require.NoError(t, err, "running the collector with --version")
+	assert.Equal(t, "comprehend.dev collector 1.2.3-test\n", string(out))
 }
 
 func TestPostgresCollector(t *testing.T) {
@@ -87,7 +97,7 @@ func TestPostgresCollector(t *testing.T) {
 	}
 
 	createFixture(t, connStr)
-	binary := buildCollector(t)
+	binary := buildCollector(t, "dev")
 
 	payloads := make(chan databasePayload, 1)
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
