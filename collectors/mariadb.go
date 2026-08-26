@@ -4,7 +4,7 @@ import (
 	"database/sql"
 	"net"
 	"strconv"
-	"github.com/comprehend-dev/comprehend.dev/agent/models"
+	"github.com/comprehend-dev/collector/models"
 	"github.com/go-ini/ini"
 	"github.com/go-sql-driver/mysql"
 	"strings"

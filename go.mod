@@ -1,4 +1,4 @@
-module github.com/comprehend-dev/comprehend.dev/agent
+module github.com/comprehend-dev/collector
 
 go 1.23.0
 

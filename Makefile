@@ -1,4 +1,4 @@
-agent: agent.go */*.go
+collector: collector.go */*.go
 	CGO_ENABLED=0 go build
 
 test:
@@ -9,6 +9,6 @@ release-internal:
 	docker push us-central1-docker.pkg.dev/mystical-banner-176722/comprehend-dev/comprehend-agent:latest
 
 clean:
-	rm agent
+	rm collector
 
 .PHONY: test clean

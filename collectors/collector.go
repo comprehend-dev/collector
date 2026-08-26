@@ -2,7 +2,7 @@ package collectors
 
 import (
 	"github.com/go-ini/ini"
-	"github.com/comprehend-dev/comprehend.dev/agent/models"
+	"github.com/comprehend-dev/collector/models"
 )
 
 type HostInfo struct {

@@ -12,7 +12,7 @@ import (
 	"syscall"
 	"time"
 	"net/url"
-	"github.com/comprehend-dev/comprehend.dev/agent/collectors"
+	"github.com/comprehend-dev/collector/collectors"
 	"github.com/go-ini/ini"
 )
 
@@ -174,7 +174,7 @@ func main() {
 
 	// Run tasks until interrupted.
 	ticker := time.NewTicker(60 * time.Second)
-	log.Println("comprehend.dev agent started for organization", organization)
+	log.Println("comprehend.dev collector started for organization", organization)
 
 	// Collect once immediately before we go into the waiting loop
 	collect()
@@ -182,7 +182,7 @@ func main() {
 	for {
 		select {
 		case <-interrupt:
-			log.Println("comprehend.dev agent exiting")
+			log.Println("comprehend.dev collector exiting")
 			return
 		case <-ticker.C:
 			collect()

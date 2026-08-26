@@ -20,7 +20,7 @@ type Table struct {
 	Name string `json:"name"`
 }
 
-func TestAgent(t *testing.T) {
+func TestCollector(t *testing.T) {
 	ch := make(chan int)
 
 	httpServerExitDone := &sync.WaitGroup{}
@@ -53,7 +53,7 @@ func TestAgent(t *testing.T) {
 		assert.Equal(t, err, http.ErrServerClosed, "server closed successfully")
 	}()
 
-	cmd := exec.Command("./agent",
+	cmd := exec.Command("./collector",
 		"--comprehend-url", "http://localhost:3333/",
 		"--organization", "testorg",
 		"--document", "arch",
@@ -73,7 +73,7 @@ func TestAgent(t *testing.T) {
 	}()
 
 	err := cmd.Start()
-	assert.Equal(t, err, nil, "agent started successfully")
+	assert.Equal(t, err, nil, "collector started successfully")
 
 	_ = <-ch
 	srv.Shutdown(context.TODO())

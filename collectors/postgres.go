@@ -2,7 +2,7 @@ package collectors
 
 import (
 	"database/sql"
-	"github.com/comprehend-dev/comprehend.dev/agent/models"
+	"github.com/comprehend-dev/collector/models"
 	_ "github.com/lib/pq"
 	"github.com/go-ini/ini"
 	"net/url"

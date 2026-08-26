@@ -8,7 +8,7 @@ import (
 	"os"
 	"strings"
 	"sync"
-	"github.com/comprehend-dev/comprehend.dev/agent/models"
+	"github.com/comprehend-dev/collector/models"
 	"github.com/go-ini/ini"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	appsv1 "k8s.io/api/apps/v1"
@@ -31,7 +31,7 @@ func warnPermissionOnce(resource string, err error) bool {
 	if apierrors.IsForbidden(err) || apierrors.IsUnauthorized(err) {
 		if _, alreadyLogged := warnedOnce.LoadOrStore(resource, struct{}{}); !alreadyLogged {
 			log.Printf("WARNING: k8s %s collection disabled — insufficient RBAC permissions. "+
-				"Ensure the agent ServiceAccount has a Role with get/list/watch on %s. Error: %v",
+				"Ensure the collector ServiceAccount has a Role with get/list/watch on %s. Error: %v",
 				resource, resource, err)
 		}
 		return true
@@ -47,7 +47,7 @@ type KubernetesCollector struct {
 	metricsClientSet *versioned.Clientset
 }
 
-/* For kubernetes the agent runs either inside a pod in the cluster, in which
+/* For kubernetes the collector runs either inside a pod in the cluster, in which
    case it picks up the appropriate environment variables automatically, or
    outside the cluster. In the latter case it can use the kubectl configuration
    files which deal with authentication. */
