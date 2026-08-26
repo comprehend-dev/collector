@@ -6,10 +6,6 @@ collector: collector.go */*.go
 test:
 	go test ./...
 
-release-internal:
-	docker build -t us-central1-docker.pkg.dev/mystical-banner-176722/comprehend-dev/comprehend-agent:latest .
-	docker push us-central1-docker.pkg.dev/mystical-banner-176722/comprehend-dev/comprehend-agent:latest
-
 clean:
 	rm collector
 
