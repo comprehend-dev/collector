@@ -2,6 +2,11 @@ The comprehend.dev collector gathers data from your local system and ingests it 
 It reads database schemas (PostgreSQL, MariaDB and MySQL) and Kubernetes clusters (deployments,
 jobs, cronjobs, pods, nodes and warning events, plus resource usage metrics).
 
+You will need a comprehend.dev API key and your organization slug to send anything. Both come from
+the SDKs page in comprehend.dev: open your organization and choose SDKs from the menu, where you can
+issue API keys and find setup instructions. That page belongs to your organization, so there is no
+single address to link to from here.
+
 # Installation
 
 Download the archive for your platform from the
