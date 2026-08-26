@@ -72,3 +72,7 @@ build, modify and redistribute it, and you may run it in production under the Ad
 which covers everything except feeding collected data to a product or service competing with
 comprehend.dev. Four years after a version is published, that version becomes available under the
 Apache License, Version 2.0.
+
+The collector links third-party Go packages, whose licenses are reproduced in
+[THIRD-PARTY-LICENSES](THIRD-PARTY-LICENSES). Run `make third-party-licenses` to regenerate that
+file after changing dependencies.
