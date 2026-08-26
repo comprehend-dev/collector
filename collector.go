@@ -18,6 +18,9 @@ import (
 
 const defaultComprehendURL = "https://ingestion.comprehend.dev/"
 
+// Replaced at build time with the released version; see VERSION in the Makefile.
+var version = "dev"
+
 func main() {
 	// Set up a channel to catch SIGINT (Ctrl+C)
 	interrupt := make(chan os.Signal, 1)
@@ -65,6 +68,7 @@ func main() {
 	flag.StringVar(&apiKey, "apikey", apiKey, "The comprehend.dev API key you created (\"API Keys\" in the menu)");
 	flag.StringVar(&organization, "organization", organization, "Your comprehend.dev organization slug.");
 	flag.StringVar(&comprehendURL, "comprehend-url", defaultComprehendURL, "The URL of the ingestion service - for development use only.");
+	showVersion := flag.Bool("version", false, "Print the collector version and exit.");
 
 	for name, collector := range collectors.Collectors {
 		flag.Func(name, collector.Description(), func(arg string) error {
@@ -83,6 +87,7 @@ func main() {
 		fmt.Fprintf(flag.CommandLine.Output(), "    --config <path>     A configuration file containing additional options.\n")
 		fmt.Fprintf(flag.CommandLine.Output(), "    --apikey <value>    The comprehend.dev API key you created (\"API Keys\" in the menu).\n")
 		fmt.Fprintf(flag.CommandLine.Output(), "    --organization <value>    Your comprehend.dev organization slug.\n")
+		fmt.Fprintf(flag.CommandLine.Output(), "    --version    Print the collector version and exit.\n")
 		// comprehend-url is intentionally undocumented as it's meant for development use only
 		for name, collector := range collectors.Collectors {
 			fmt.Fprintf(flag.CommandLine.Output(), "    --%s <value>    %s\n", name, collector.Description())
@@ -94,6 +99,11 @@ func main() {
 	}
 
 	flag.Parse()
+
+	if *showVersion {
+		fmt.Printf("comprehend.dev collector %s\n", version)
+		return
+	}
 
 	for idx, arg := range flag.Args() {
 		schema, _, found := strings.Cut(arg, ":")

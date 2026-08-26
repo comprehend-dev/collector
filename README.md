@@ -2,6 +2,34 @@ The comprehend.dev collector gathers data from your local system and ingests it 
 It reads database schemas (PostgreSQL, MariaDB and MySQL) and Kubernetes clusters (deployments,
 jobs, cronjobs, pods, nodes and warning events, plus resource usage metrics).
 
+You will need a comprehend.dev API key and your organization slug to send anything. Both come from
+the SDKs page in comprehend.dev: open your organization and choose SDKs from the menu, where you can
+issue API keys and find setup instructions. That page belongs to your organization, so there is no
+single address to link to from here.
+
+# Installation
+
+Download the archive for your platform from the
+[releases page](https://github.com/comprehend-dev/collector/releases), check it against the
+`SHA256SUMS` published alongside it, and unpack it:
+
+```
+tar -xzf collector-1.0.0-linux-amd64.tar.gz
+./collector-1.0.0-linux-amd64/collector --version
+```
+
+Binaries are built for Linux and macOS, on both amd64 and arm64.
+
+The container image is published for the same architectures; Docker picks the right one for your
+machine:
+
+```
+docker run --rm ghcr.io/comprehend-dev/collector:latest --version
+```
+
+To build from source instead, you need Go 1.23 or later; `make` leaves a `collector` binary in the
+working directory.
+
 # Configuration
 
 ```
