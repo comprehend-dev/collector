@@ -64,3 +64,11 @@ Per-pod and per-node CPU/memory metrics require the
 [metrics server](https://github.com/kubernetes-sigs/metrics-server). The collector tolerates missing
 RBAC permissions: it logs a warning once for any resource it cannot read and continues with whatever
 it can collect.
+
+# License
+
+The collector is source available under the [Business Source License 1.1](LICENSE): you may read,
+build, modify and redistribute it, and you may run it in production under the Additional Use Grant,
+which covers everything except feeding collected data to a product or service competing with
+comprehend.dev. Four years after a version is published, that version becomes available under the
+Apache License, Version 2.0.
