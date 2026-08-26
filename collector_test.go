@@ -1,84 +1,169 @@
 package main
 
 import (
-	"context"
+	"database/sql"
 	"encoding/json"
-	"io"
 	"net/http"
+	"net/http/httptest"
 	"os"
 	"os/exec"
-	"os/signal"
-	"slices"
-	"strings"
-	"sync"
-	"syscall"
+	"path/filepath"
 	"testing"
+	"time"
+
+	_ "github.com/lib/pq"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
-type Table struct {
-	Name string `json:"name"`
+const fixtureTable = "collector_test_widgets"
+
+type collectedColumn struct {
+	Name     string `json:"name"`
+	Type     string `json:"type"`
+	Nullable bool   `json:"nullable"`
 }
 
-func TestCollector(t *testing.T) {
-	ch := make(chan int)
+type collectedKey struct {
+	ColumnNames []string `json:"column_names"`
+}
 
-	httpServerExitDone := &sync.WaitGroup{}
-	httpServerExitDone.Add(1)
+type collectedTable struct {
+	Name       string            `json:"name"`
+	Columns    []collectedColumn `json:"columns"`
+	Rows       int               `json:"rows"`
+	PrimaryKey *collectedKey     `json:"primary_key"`
+}
 
-	srv := &http.Server{Addr: ":3333"}
+type collectedDatabase struct {
+	Database string           `json:"database"`
+	Schema   string           `json:"schema"`
+	Tables   []collectedTable `json:"tables"`
+}
 
-	http.HandleFunc("/testorg/sync/postgresql", func (w http.ResponseWriter, r *http.Request) {
-		assert.Equal(t, r.Header.Get("Content-Type"), "application/json", "Got a JSON request")
-		dec := json.NewDecoder(r.Body)
-		var dbs []struct{
-			Database string `json:"database"`
-			Schema string `json:"schema"`
-			Tables []Table
-		}
-		err := dec.Decode(&dbs)
-		assert.Equal(t, nil, err, "Could decode JSON")
-		assert.Equal(t, strings.Split(os.Getenv("COMPREHEND_DB_CONN_INFO"), "/")[3], dbs[0].Database, "Found test database")
-		assert.Equal(t, "public", dbs[0].Schema, "Found public schema")
-		idx := slices.IndexFunc(dbs[0].Tables, func(t Table) bool { return t.Name == "organizations" })
-		assert.GreaterOrEqual(t, idx, 0, "Table organizations found")
-		w.WriteHeader(204)
-		io.WriteString(w, "OK")
-		ch <- 1
+type databasePayload struct {
+	Host      string              `json:"host"`
+	Port      int                 `json:"port"`
+	Databases []collectedDatabase `json:"databases"`
+}
+
+// createFixture gives the collector something of our own making to find, so that the test does not
+// depend on whatever else happens to live in the database it is pointed at.
+func createFixture(t *testing.T, connStr string) {
+	t.Helper()
+
+	db, err := sql.Open("postgres", connStr)
+	require.NoError(t, err, "opening the test database")
+	t.Cleanup(func() {
+		_, _ = db.Exec("DROP TABLE IF EXISTS " + fixtureTable)
+		db.Close()
 	})
+	require.NoError(t, db.Ping(), "connecting to the test database")
 
-	go func() {
-		defer httpServerExitDone.Done()
-		err := srv.ListenAndServe()
-		assert.Equal(t, err, http.ErrServerClosed, "server closed successfully")
-	}()
+	_, err = db.Exec("DROP TABLE IF EXISTS " + fixtureTable)
+	require.NoError(t, err, "dropping a leftover fixture table")
+	_, err = db.Exec("CREATE TABLE " + fixtureTable +
+		" (id serial PRIMARY KEY, name text NOT NULL, description text)")
+	require.NoError(t, err, "creating the fixture table")
+	_, err = db.Exec("INSERT INTO " + fixtureTable +
+		" (name, description) VALUES ('first', 'a widget'), ('second', NULL)")
+	require.NoError(t, err, "filling the fixture table")
+}
 
-	cmd := exec.Command("./collector",
-		"--comprehend-url", "http://localhost:3333/",
+func buildCollector(t *testing.T) string {
+	t.Helper()
+
+	binary := filepath.Join(t.TempDir(), "collector")
+	build := exec.Command("go", "build", "-o", binary, ".")
+	build.Stderr = os.Stderr
+	require.NoError(t, build.Run(), "building the collector")
+	return binary
+}
+
+func TestPostgresCollector(t *testing.T) {
+	connStr := os.Getenv("COLLECTOR_TEST_POSTGRES")
+	if connStr == "" {
+		t.Skip("set COLLECTOR_TEST_POSTGRES to a PostgreSQL connection string to run this test")
+	}
+
+	createFixture(t, connStr)
+	binary := buildCollector(t)
+
+	payloads := make(chan databasePayload, 1)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assert.Equal(t, "/testorg/sync/postgresql", r.URL.Path, "ingested to the collector's own route")
+		assert.Equal(t, "application/json", r.Header.Get("Content-Type"))
+		assert.Equal(t, "Bearer test-key", r.Header.Get("Authorization"))
+
+		var payload databasePayload
+		if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+			t.Errorf("could not decode the ingested payload: %s", err)
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
+		w.WriteHeader(http.StatusNoContent)
+
+		select {
+		case payloads <- payload:
+		default:
+		}
+	}))
+	defer server.Close()
+
+	cmd := exec.Command(binary,
+		"--comprehend-url", server.URL+"/",
 		"--organization", "testorg",
-		"--document", "arch",
-		os.Getenv("COMPREHEND_DB_CONN_INFO") + "?sslmode=disable")
-	cmd.Stdin = os.Stdin
+		"--apikey", "test-key",
+		"--postgresql", connStr)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
+	require.NoError(t, cmd.Start(), "starting the collector")
 
-	sigc := make(chan os.Signal, 1)
-	signal.Notify(sigc, syscall.SIGCHLD)
-	go func() {
-		_ = <-sigc
-		state, err := cmd.Process.Wait()
-		assert.Equal(t, err, nil, "Waited successfully for child")
-		assert.Equal(t, 0, state.ExitCode(), "Child exited successfully")
-		ch <- 1
+	exited := make(chan error, 1)
+	go func() { exited <- cmd.Wait() }()
+	defer func() {
+		_ = cmd.Process.Kill()
+		select {
+		case <-exited:
+		case <-time.After(5 * time.Second):
+		}
 	}()
 
-	err := cmd.Start()
-	assert.Equal(t, err, nil, "collector started successfully")
+	var payload databasePayload
+	select {
+	case payload = <-payloads:
+	case err := <-exited:
+		t.Fatalf("the collector exited before ingesting anything: %s", err)
+	case <-time.After(30 * time.Second):
+		t.Fatal("timed out waiting for the collector to ingest")
+	}
 
-	_ = <-ch
-	srv.Shutdown(context.TODO())
+	assert.NotEmpty(t, payload.Host, "reported the database host")
 
-	err = cmd.Process.Kill()
+	var fixture *collectedTable
+	for i := range payload.Databases {
+		database := &payload.Databases[i]
+		if database.Schema != "public" {
+			continue
+		}
+		for j := range database.Tables {
+			if database.Tables[j].Name == fixtureTable {
+				fixture = &database.Tables[j]
+			}
+		}
+	}
+	require.NotNil(t, fixture, "collected the fixture table from the public schema")
 
-	httpServerExitDone.Wait()
+	assert.Equal(t, 2, fixture.Rows, "counted the fixture rows")
+
+	require.NotNil(t, fixture.PrimaryKey, "collected the primary key")
+	assert.Equal(t, []string{"id"}, fixture.PrimaryKey.ColumnNames)
+
+	columns := map[string]collectedColumn{}
+	for _, column := range fixture.Columns {
+		columns[column.Name] = column
+	}
+	assert.Equal(t, collectedColumn{Name: "id", Type: "int4", Nullable: false}, columns["id"])
+	assert.Equal(t, collectedColumn{Name: "name", Type: "text", Nullable: false}, columns["name"])
+	assert.Equal(t, collectedColumn{Name: "description", Type: "text", Nullable: true}, columns["description"])
 }
