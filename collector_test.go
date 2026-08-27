@@ -222,3 +222,18 @@ func TestUsageListsCollectorsInAStableOrder(t *testing.T) {
 			"%s does not list every collector in sorted order", section.name)
 	}
 }
+
+// The descriptions line up in a column, and the README reproduces the usage, so a new option that
+// does not fit would quietly leave both crooked.
+func TestUsageDescriptionsLineUp(t *testing.T) {
+	usage := usage(t, buildCollector(t, "dev"))
+
+	entry := regexp.MustCompile(`(?m)^ {4}(\S.*?) {2,}(\S.*)$`)
+	matches := entry.FindAllStringSubmatchIndex(usage, -1)
+	require.NotEmpty(t, matches, "the usage lists no options at all")
+
+	for _, match := range matches {
+		line, column := usage[match[0]:match[1]], match[4]-match[0]
+		assert.Equal(t, 28, column, "description is not in the usual column: %q", line)
+	}
+}
