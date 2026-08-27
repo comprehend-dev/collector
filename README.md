@@ -36,16 +36,18 @@ working directory.
 Usage: ./collector [options] [arguments]
 Options:
     --config <path>         A configuration file containing additional options.
-    --apikey <value>        The comprehend.dev API key you created ("API Keys" in the menu).
+    --apikey <value>        The comprehend.dev API key you created ("API Keys" on the SDKs page).
     --organization <value>  Your comprehend.dev organization slug.
-    --postgresql <value>    PostgreSQL connection string/URI.
-    --mariadb <value>       MariaDB connection string/URI (DSN).
-    --mysql <value>         MySQL connection string/URI (DSN).
-    --k8s <value>           Kubernetes namespace, or "<kubeconfig path> <namespace>".
+    --version               Print the collector version and exit.
+    --k8s <value>           Kubernetes connection string/URI
+    --mariadb <value>       MariaDB connection string/URI
+    --mysql <value>         MySQL connection string/URI
+    --postgresql <value>    PostgreSQL connection string/URI
 Arguments:
-    postgresql://...        PostgreSQL connection string/URI.
-    mariadb://...           MariaDB connection string/URI.
-    mysql://...             MySQL connection string/URI.
+    k8s://...               Kubernetes connection string/URI
+    mariadb://...           MariaDB connection string/URI
+    mysql://...             MySQL connection string/URI
+    postgresql://...        PostgreSQL connection string/URI
 ```
 
 When run without any arguments the collector will try to use data source specific environment

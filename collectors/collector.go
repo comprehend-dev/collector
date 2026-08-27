@@ -1,6 +1,8 @@
 package collectors
 
 import (
+	"sort"
+
 	"github.com/go-ini/ini"
 	"github.com/comprehend-dev/collector/models"
 )
@@ -29,4 +31,15 @@ func RegisterCollector(collector Collector) (CollectorRegistration) {
 	name := collector.URISchema()
 	Collectors[name] = collector
 	return CollectorRegistration{}
+}
+
+// Names lists the registered collectors in a stable order. Ranging over the map gives a different
+// order on every run, which users see in --help and in what we log.
+func Names() ([]string) {
+	names := make([]string, 0, len(Collectors))
+	for name := range Collectors {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	return names
 }

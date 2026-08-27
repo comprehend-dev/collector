@@ -65,12 +65,13 @@ func main() {
 		return nil
 	})
 
-	flag.StringVar(&apiKey, "apikey", apiKey, "The comprehend.dev API key you created (\"API Keys\" in the menu)");
+	flag.StringVar(&apiKey, "apikey", apiKey, "The comprehend.dev API key you created (\"API Keys\" on the SDKs page)");
 	flag.StringVar(&organization, "organization", organization, "Your comprehend.dev organization slug.");
 	flag.StringVar(&comprehendURL, "comprehend-url", defaultComprehendURL, "The URL of the ingestion service - for development use only.");
 	showVersion := flag.Bool("version", false, "Print the collector version and exit.");
 
-	for name, collector := range collectors.Collectors {
+	for _, name := range collectors.Names() {
+		collector := collectors.Collectors[name]
 		flag.Func(name, collector.Description(), func(arg string) error {
 			activeCollector, err := collector.Initialize(arg);
 			if err != nil {
@@ -82,19 +83,23 @@ func main() {
 	}
 
 	flag.Usage = func() {
+		// Descriptions line up in a column, so that the widest option still leaves two spaces.
+		entry := func(option string, description string) {
+			fmt.Fprintf(flag.CommandLine.Output(), "    %-22s  %s\n", option, description)
+		}
 		fmt.Fprintf(flag.CommandLine.Output(), "Usage: %s [options] [arguments]\n", os.Args[0])
 		fmt.Fprintf(flag.CommandLine.Output(), "Options:\n")
-		fmt.Fprintf(flag.CommandLine.Output(), "    --config <path>     A configuration file containing additional options.\n")
-		fmt.Fprintf(flag.CommandLine.Output(), "    --apikey <value>    The comprehend.dev API key you created (\"API Keys\" in the menu).\n")
-		fmt.Fprintf(flag.CommandLine.Output(), "    --organization <value>    Your comprehend.dev organization slug.\n")
-		fmt.Fprintf(flag.CommandLine.Output(), "    --version    Print the collector version and exit.\n")
+		entry("--config <path>", "A configuration file containing additional options.")
+		entry("--apikey <value>", "The comprehend.dev API key you created (\"API Keys\" on the SDKs page).")
+		entry("--organization <value>", "Your comprehend.dev organization slug.")
+		entry("--version", "Print the collector version and exit.")
 		// comprehend-url is intentionally undocumented as it's meant for development use only
-		for name, collector := range collectors.Collectors {
-			fmt.Fprintf(flag.CommandLine.Output(), "    --%s <value>    %s\n", name, collector.Description())
+		for _, name := range collectors.Names() {
+			entry(fmt.Sprintf("--%s <value>", name), collectors.Collectors[name].Description())
 		}
 		fmt.Fprintf(flag.CommandLine.Output(), "Arguments:\n")
-		for name, collector := range collectors.Collectors {
-			fmt.Fprintf(flag.CommandLine.Output(), "    %s://...    %s\n", name, collector.Description())
+		for _, name := range collectors.Names() {
+			entry(fmt.Sprintf("%s://...", name), collectors.Collectors[name].Description())
 		}
 	}
 
@@ -124,7 +129,8 @@ func main() {
 	if len(activeCollectors) == 0 {
 		// No arguments. Give collectors a chance to auto-detect
 		var errors string = ""
-		for _, collector := range collectors.Collectors {
+		for _, name := range collectors.Names() {
+			collector := collectors.Collectors[name]
 			defaultCollector, err := collector.InitializeDefault()
 			if err != nil {
 				errors = fmt.Sprintf("%s%s: %s\n", errors, collector.URISchema(), err)
