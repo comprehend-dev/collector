@@ -100,13 +100,14 @@ func TestPostgresCollector(t *testing.T) {
 	}
 
 	createFixture(t, connStr)
-	binary := buildCollector(t, "dev")
+	binary := buildCollector(t, "1.2.3-test")
 
 	payloads := make(chan databasePayload, 1)
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		assert.Equal(t, "/testorg/sync/postgresql", r.URL.Path, "ingested to the collector's own route")
 		assert.Equal(t, "application/json", r.Header.Get("Content-Type"))
 		assert.Equal(t, "Bearer test-key", r.Header.Get("Authorization"))
+		assert.Equal(t, "1.2.3-test", r.Header.Get(versionHeader), "reported the collector version")
 
 		var payload databasePayload
 		if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {

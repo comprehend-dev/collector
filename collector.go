@@ -21,6 +21,9 @@ const defaultComprehendURL = "https://ingestion.comprehend.dev/"
 // Replaced at build time with the released version; see VERSION in the Makefile.
 var version = "dev"
 
+// The header every ingestion request carries the collector's version in.
+const versionHeader = "Comprehend-Collector-Version"
+
 func main() {
 	// Set up a channel to catch SIGINT (Ctrl+C)
 	interrupt := make(chan os.Signal, 1)
@@ -174,6 +177,9 @@ func main() {
 
 			req.Header.Add("Authorization", "Bearer " + apiKey)
 			req.Header.Add("Content-Type", "application/json")
+			// Reported with every request, so comprehend.dev can tell an organization that the
+			// collector they are running has fallen behind.
+			req.Header.Add(versionHeader, version)
 			res, err := client.Do(req)
 			if err != nil {
 				log.Fatalf("Error making http request: %s\n", err)
