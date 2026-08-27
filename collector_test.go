@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"database/sql"
 	"encoding/json"
 	"net/http"
@@ -8,9 +9,11 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"testing"
 	"time"
 
+	"github.com/comprehend-dev/collector/collectors"
 	_ "github.com/lib/pq"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -176,4 +179,46 @@ func TestPostgresCollector(t *testing.T) {
 	assert.Equal(t, collectedColumn{Name: "id", Type: "int4", Nullable: false}, columns["id"])
 	assert.Equal(t, collectedColumn{Name: "name", Type: "text", Nullable: false}, columns["name"])
 	assert.Equal(t, collectedColumn{Name: "description", Type: "text", Nullable: true}, columns["description"])
+}
+
+// usage runs the collector with --help and returns what it printed. Go's flag package writes the
+// usage to stderr and exits non-zero, so neither is a failure here.
+func usage(t *testing.T, binary string) string {
+	t.Helper()
+
+	cmd := exec.Command(binary, "--help")
+	var out bytes.Buffer
+	cmd.Stdout = &out
+	cmd.Stderr = &out
+	_ = cmd.Run()
+	return out.String()
+}
+
+// The collectors used to be listed by ranging over the map they register themselves in, so the
+// usage came out in a different order on every run and could not be documented.
+func TestUsageListsCollectorsInAStableOrder(t *testing.T) {
+	binary := buildCollector(t, "dev")
+
+	first := usage(t, binary)
+	for run := 0; run < 5; run++ {
+		assert.Equal(t, first, usage(t, binary), "the usage changed between runs")
+	}
+
+	for _, section := range []struct {
+		name    string
+		pattern *regexp.Regexp
+	}{
+		{"Options", regexp.MustCompile(`(?m)^ +--([a-z0-9]+) <value>`)},
+		{"Arguments", regexp.MustCompile(`(?m)^ +([a-z0-9]+)://\.\.\.`)},
+	} {
+		var listed []string
+		for _, match := range section.pattern.FindAllStringSubmatch(first, -1) {
+			if _, isCollector := collectors.Collectors[match[1]]; isCollector {
+				listed = append(listed, match[1])
+			}
+		}
+
+		assert.Equal(t, collectors.Names(), listed,
+			"%s does not list every collector in sorted order", section.name)
+	}
 }

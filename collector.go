@@ -70,7 +70,8 @@ func main() {
 	flag.StringVar(&comprehendURL, "comprehend-url", defaultComprehendURL, "The URL of the ingestion service - for development use only.");
 	showVersion := flag.Bool("version", false, "Print the collector version and exit.");
 
-	for name, collector := range collectors.Collectors {
+	for _, name := range collectors.Names() {
+		collector := collectors.Collectors[name]
 		flag.Func(name, collector.Description(), func(arg string) error {
 			activeCollector, err := collector.Initialize(arg);
 			if err != nil {
@@ -89,12 +90,12 @@ func main() {
 		fmt.Fprintf(flag.CommandLine.Output(), "    --organization <value>    Your comprehend.dev organization slug.\n")
 		fmt.Fprintf(flag.CommandLine.Output(), "    --version    Print the collector version and exit.\n")
 		// comprehend-url is intentionally undocumented as it's meant for development use only
-		for name, collector := range collectors.Collectors {
-			fmt.Fprintf(flag.CommandLine.Output(), "    --%s <value>    %s\n", name, collector.Description())
+		for _, name := range collectors.Names() {
+			fmt.Fprintf(flag.CommandLine.Output(), "    --%s <value>    %s\n", name, collectors.Collectors[name].Description())
 		}
 		fmt.Fprintf(flag.CommandLine.Output(), "Arguments:\n")
-		for name, collector := range collectors.Collectors {
-			fmt.Fprintf(flag.CommandLine.Output(), "    %s://...    %s\n", name, collector.Description())
+		for _, name := range collectors.Names() {
+			fmt.Fprintf(flag.CommandLine.Output(), "    %s://...    %s\n", name, collectors.Collectors[name].Description())
 		}
 	}
 
@@ -124,7 +125,8 @@ func main() {
 	if len(activeCollectors) == 0 {
 		// No arguments. Give collectors a chance to auto-detect
 		var errors string = ""
-		for _, collector := range collectors.Collectors {
+		for _, name := range collectors.Names() {
+			collector := collectors.Collectors[name]
 			defaultCollector, err := collector.InitializeDefault()
 			if err != nil {
 				errors = fmt.Sprintf("%s%s: %s\n", errors, collector.URISchema(), err)
