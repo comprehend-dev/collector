@@ -122,6 +122,12 @@ func (c PostgresCollector) Collect() (models.Model, error) {
                                             'name', relname,
                                             'columns', cols,
 					    'rows', case
+						    -- An exact count needs SELECT on the table's data (unlike the rest of
+						    -- this query, which only reads catalog metadata visible regardless of
+						    -- table-level grants). Missing that permission on one table must not
+						    -- abort collection of every other table, so fall back to the same
+						    -- reltuples estimate already used for huge tables.
+						    when not has_table_privilege(pg_class.oid, 'SELECT') then reltuples
 						    when reltuples < 100000000 then (
 							    xpath('/row/cnt/text()', query_to_xml(format('select count(*) as cnt from %I.%I', nspname, relname), false, true, ''))
 						    )[1]::text::int
