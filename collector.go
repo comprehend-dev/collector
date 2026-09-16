@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"flag"
 	"fmt"
+	"io"
 	"log"
 	"net/http"
 	"os"
@@ -156,23 +157,30 @@ func main() {
 	client := &http.Client{}
 	comprehendURL = comprehendURL + url.PathEscape(organization) + "/sync/"
 
+	// A failure collecting or reporting from one collector (e.g. a database permission error)
+	// must not take down the others, nor the process as a whole - the collector keeps running
+	// on its ticker so that a fixable problem with one source doesn't cut off every other
+	// source until someone notices and restarts it.
 	collect := func () {
 		for _, collector := range activeCollectors {
 			reqURL := comprehendURL + collector.URISchema()
 
 			model, err := collector.Collect()
 			if err != nil {
-				log.Fatalf("Error trying to collect: %s", err)
+				log.Printf("Error collecting from %s: %s\n", collector.URISchema(), err)
+				continue
 			}
 
 			json, err := model.ToJSON()
 			if err != nil {
-				log.Fatalf("Error getting JSON from model: %s", err)
+				log.Printf("Error getting JSON from model for %s: %s\n", collector.URISchema(), err)
+				continue
 			}
 
 			req, err := http.NewRequest(http.MethodPost, reqURL, bytes.NewBuffer(json))
 			if err != nil {
-				log.Fatalf("Could not create http request: %s\n", err)
+				log.Printf("Could not create http request for %s: %s\n", collector.URISchema(), err)
+				continue
 			}
 
 			req.Header.Add("Authorization", "Bearer " + apiKey)
@@ -182,13 +190,24 @@ func main() {
 			req.Header.Add(versionHeader, version)
 			res, err := client.Do(req)
 			if err != nil {
-				log.Fatalf("Error making http request: %s\n", err)
+				log.Printf("Error making http request for %s: %s\n", collector.URISchema(), err)
+				continue
+			}
+
+			if res.StatusCode == http.StatusUnauthorized {
+				body, _ := io.ReadAll(res.Body)
+				res.Body.Close()
+				// Unlike a single source failing to collect, an auth failure means nothing we send
+				// will ever be accepted - it affects every collector, not just this one, and needs
+				// a human to fix the API key. Crash loudly rather than quietly retrying forever.
+				log.Fatalf("Authorization failed talking to comprehend.dev for %s: %s\n\n%s\n", collector.URISchema(), res.Status, body)
 			}
 
 			if res.StatusCode != 204 {
-				var body []byte
-				res.Body.Read(body)
-				log.Fatalf("Got unexpected response from server: %s\n\n%s\n", res.Status, body)
+				body, _ := io.ReadAll(res.Body)
+				log.Printf("Got unexpected response from server for %s: %s\n\n%s\n", collector.URISchema(), res.Status, body)
+				res.Body.Close()
+				continue
 			}
 			res.Body.Close()
 		}
